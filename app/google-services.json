@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "547989220787",
+    "project_id": "yuxiaofy",
+    "storage_bucket": "yuxiaofy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:547989220787:android:c4c35af246940ded812fc6",
+        "android_client_info": {
+          "package_name": "com.example.yuxiaofy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvttJMyDQvuCUeDV7o0N7UF1CO-SO1G3k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
