@@ -2,8 +2,11 @@ package com.example.yuxiaofy
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
+import android.view.animation.AnimationUtils
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -19,46 +22,93 @@ class RegisterActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_register)
 
-        // 1. Ánh xạ các ô nhập liệu từ layout activity_register.xml
         val etName = findViewById<EditText>(R.id.etName)
         val etEmail = findViewById<EditText>(R.id.etRegEmail)
         val etPassword = findViewById<EditText>(R.id.etRegPassword)
+        val etConfirmPassword = findViewById<EditText>(R.id.etConfirmPassword)
         val btnRegister = findViewById<Button>(R.id.btnRegister)
         val tvBackToLogin = findViewById<TextView>(R.id.tvBackToLogin)
+        val progressBar = findViewById<ProgressBar>(R.id.registerProgress)
+
+        // Entrance animation
+        val slideUp = AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)
+        findViewById<View>(R.id.registerCard).startAnimation(slideUp)
 
         btnRegister.setOnClickListener {
             val name = etName.text.toString().trim()
             val email = etEmail.text.toString().trim()
             val password = etPassword.text.toString().trim()
+            val confirm = etConfirmPassword.text.toString().trim()
 
-            // Kiểm tra nhập liệu cơ bản
-            if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            if (name.isEmpty() || email.isEmpty() || password.isEmpty() || confirm.isEmpty()) {
                 Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            // 2. Sử dụng lifecycleScope để thực hiện tác vụ bất đồng bộ [cite: 23, 89]
-            lifecycleScope.launch(Dispatchers.IO) { // Chạy trên luồng I/O theo khuyến nghị [cite: 23, 189]
+            if (password != confirm) {
+                val shake = AnimationUtils.loadAnimation(this, R.anim.shake)
+                etConfirmPassword.startAnimation(shake)
+                Toast.makeText(this, "Mật khẩu không khớp", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (password.length < 6) {
+                Toast.makeText(this, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            progressBar.visibility = View.VISIBLE
+            btnRegister.isEnabled = false
+
+            lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val db = AppDatabase.getDatabase(this@RegisterActivity)
-                    val newUser = User(name = name, email = email, password = password)
+                    val existing = db.userDao().getUserByEmail(email)
 
-                    // Gọi hàm DAO để lưu user vào database
-                    db.userDao().registerUser(newUser)
-
-                    // 3. Quay lại luồng chính (Main Thread) để hiển thị thông báo và chuyển màn hình [cite: 176]
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@RegisterActivity,
-                            "Đăng ký thành công!",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        val intent = Intent(this@RegisterActivity, LoginActivity::class.java)
-                        startActivity(intent)
-                        finish()
+                        progressBar.visibility = View.GONE
+                        btnRegister.isEnabled = true
+
+                        if (existing != null) {
+                            Toast.makeText(
+                                this@RegisterActivity,
+                                "Email đã được sử dụng",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                db.userDao().registerUser(
+                                    User(
+                                        name = name,
+                                        email = email,
+                                        password = password
+                                    )
+                                )
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(
+                                        this@RegisterActivity,
+                                        "Đăng ký thành công! 🎵",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    startActivity(
+                                        Intent(
+                                            this@RegisterActivity,
+                                            LoginActivity::class.java
+                                        )
+                                    )
+                                    overridePendingTransition(
+                                        R.anim.slide_in_left,
+                                        R.anim.slide_out_right
+                                    )
+                                    finish()
+                                }
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
+                        progressBar.visibility = View.GONE
+                        btnRegister.isEnabled = true
                         Toast.makeText(
                             this@RegisterActivity,
                             "Lỗi: ${e.message}",
@@ -71,6 +121,7 @@ class RegisterActivity : AppCompatActivity() {
 
         tvBackToLogin.setOnClickListener {
             finish()
+            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
         }
     }
 }
