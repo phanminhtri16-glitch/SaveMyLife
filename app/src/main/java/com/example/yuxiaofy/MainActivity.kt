@@ -12,10 +12,12 @@ import android.view.animation.AnimationUtils
 import android.view.animation.LinearInterpolator
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.toColorInt
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -50,7 +52,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById<View>(R.id.main)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
@@ -111,7 +113,7 @@ class MainActivity : AppCompatActivity() {
                 if (isFavorite) android.R.drawable.btn_star_big_on
                 else android.R.drawable.btn_star_big_off
             )
-            if (isFavorite) btnHeart.setColorFilter(Color.parseColor("#FF4081"))
+            if (isFavorite) btnHeart.setColorFilter("#FF4081".toColorInt())
             else btnHeart.clearColorFilter()
             val bounce = AnimationUtils.loadAnimation(this, R.anim.heart_bounce)
             btnHeart.startAnimation(bounce)
@@ -221,7 +223,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateTimeDisplay() {
         val mins = progress / 60
         val secs = progress % 60
-        tvCurrentTime.text = String.format("%d:%02d", mins, secs)
+        tvCurrentTime.text = String.format(Locale.getDefault(), "%d:%02d", mins, secs)
     }
 
     override fun onDestroy() {
@@ -252,29 +254,29 @@ class PlaylistAdapter(private val songs: List<SongHome>) :
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val s = songs[position]
+        val s = songs[holder.bindingAdapterPosition]
         holder.tvTitle.text = s.title
         holder.tvArtist.text = s.artist
         holder.tvDuration.text = s.duration
         holder.imgThumb.setImageResource(s.imageRes)
 
-        if (position == currentPlayingPos) {
-            holder.tvTitle.setTextColor(Color.parseColor("#BB86FC"))
-            holder.tvIndex.setTextColor(Color.parseColor("#BB86FC"))
+        if (holder.bindingAdapterPosition == currentPlayingPos) {
+            holder.tvTitle.setTextColor("#BB86FC".toColorInt())
+            holder.tvIndex.setTextColor("#BB86FC".toColorInt())
             holder.nowPlayingBar.visibility = View.VISIBLE
             holder.tvIndex.text = "▶"
         } else {
             holder.tvTitle.setTextColor(Color.WHITE)
-            holder.tvIndex.setTextColor(Color.parseColor("#888888"))
+            holder.tvIndex.setTextColor("#888888".toColorInt())
             holder.nowPlayingBar.visibility = View.GONE
-            holder.tvIndex.text = (position + 1).toString()
+            holder.tvIndex.text = (holder.bindingAdapterPosition + 1).toString()
         }
 
         holder.itemView.setOnClickListener {
             val old = currentPlayingPos
-            currentPlayingPos = position
+            currentPlayingPos = holder.bindingAdapterPosition
             notifyItemChanged(old)
-            notifyItemChanged(position)
+            notifyItemChanged(currentPlayingPos)
         }
     }
 
