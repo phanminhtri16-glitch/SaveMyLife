@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "547989220787",
-    "project_id": "yuxiaofy",
-    "storage_bucket": "yuxiaofy.firebasestorage.app"
+    "project_number": "232595592325",
+    "project_id": "music-app-4eb61",
+    "storage_bucket": "music-app-4eb61.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:547989220787:android:c4c35af246940ded812fc6",
+        "mobilesdk_app_id": "1:232595592325:android:599d02607d8d97785145ec",
         "android_client_info": {
           "package_name": "com.example.yuxiaofy"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBvttJMyDQvuCUeDV7o0N7UF1CO-SO1G3k"
+          "current_key": "AIzaSyAIp72zNF5rZ4N16-FY7scXCzUd4li04qA"
         }
       ],
       "services": {
