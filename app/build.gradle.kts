@@ -47,9 +47,17 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    // Firebase BOM - quản lý version tự động
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-analytics")
 
+    // ✅ THÊM MỚI: Firebase Auth - đăng nhập / đăng ký
+    implementation("com.google.firebase:firebase-auth-ktx")
+
+    // ✅ THÊM MỚI: Firestore - lưu dữ liệu bài hát, playlist, yêu thích
+    implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Room Database - cache offline
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     kapt(libs.androidx.room.compiler)
