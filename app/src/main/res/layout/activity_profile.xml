@@ -11,29 +11,46 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="40dp">
+        android:paddingBottom="48dp">
 
-        <!-- Back button -->
-        <ImageView
-            android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="52dp"
-            android:background="@drawable/bg_input_glass"
-            android:padding="8dp"
-            android:src="@android:drawable/ic_media_previous" />
+        <!-- ── TOP BAR ── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="52dp"
+            android:paddingBottom="8dp">
 
-        <!-- Avatar section -->
+            <ImageView
+                android:id="@+id/btnBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_input_glass"
+                android:padding="8dp"
+                android:src="@android:drawable/ic_media_previous" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:text="Profile"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp" />
+        </LinearLayout>
+
+        <!-- ── AVATAR SECTION ── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingTop="20dp"
-            android:paddingBottom="28dp">
+            android:paddingTop="16dp"
+            android:paddingBottom="24dp">
 
-            <!-- Large avatar circle -->
             <androidx.cardview.widget.CardView
                 android:layout_width="90dp"
                 android:layout_height="90dp"
@@ -72,12 +89,12 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Stats row -->
+        <!-- ── STATS ROW ── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="20dp"
-            android:layout_marginBottom="24dp"
+            android:layout_marginBottom="28dp"
             android:background="@drawable/bg_glass_item"
             android:orientation="horizontal"
             android:padding="16dp">
@@ -94,7 +111,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="6"
+                    android:text="—"
                     android:textColor="#BB86FC"
                     android:textSize="22sp" />
 
@@ -124,7 +141,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="42"
+                    android:text="—"
                     android:textColor="#BB86FC"
                     android:textSize="22sp" />
 
@@ -154,7 +171,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
-                    android:text="12h"
+                    android:text="—"
                     android:textColor="#BB86FC"
                     android:textSize="22sp" />
 
@@ -167,24 +184,28 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Menu items -->
+        <!-- ── SECTION: ACCOUNT ── -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="20dp"
-            android:layout_marginBottom="12dp"
-            android:letterSpacing="0.1"
-            android:text="Account"
+            android:layout_marginBottom="10dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.15"
+            android:text="ACCOUNT"
             android:textColor="#AAAACC"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
-        <!-- Edit Profile row -->
+        <!-- Edit Profile -->
         <LinearLayout
+            android:id="@+id/rowEditProfile"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="58dp"
             android:layout_marginHorizontal="20dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/bg_glass_item"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingHorizontal="16dp">
@@ -192,8 +213,8 @@
             <ImageView
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                app:tint="#BB86FC"
-                android:src="@android:drawable/ic_menu_edit" />
+                android:src="@android:drawable/ic_menu_edit"
+                app:tint="#BB86FC" />
 
             <TextView
                 android:layout_width="0dp"
@@ -204,20 +225,19 @@
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:alpha="0.5"
-                android:src="@android:drawable/arrow_up_float" />
+
         </LinearLayout>
 
-        <!-- Notifications row -->
+        <!-- Change Password -->
         <LinearLayout
+            android:id="@+id/rowChangePassword"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="58dp"
             android:layout_marginHorizontal="20dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/bg_glass_item"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingHorizontal="16dp">
@@ -225,8 +245,53 @@
             <ImageView
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                app:tint="#BB86FC"
-                android:src="@android:drawable/ic_dialog_info" />
+                android:src="@android:drawable/ic_lock_lock"
+                app:tint="#BB86FC" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="Change Password"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+
+        </LinearLayout>
+
+        <!-- ── SECTION: PREFERENCES ── -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="10dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.15"
+            android:text="PREFERENCES"
+            android:textColor="#AAAACC"
+            android:textSize="11sp" />
+
+        <!-- Notifications -->
+        <LinearLayout
+            android:id="@+id/rowNotifications"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_glass_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_dialog_info"
+                app:tint="#BB86FC" />
 
             <TextView
                 android:layout_width="0dp"
@@ -237,31 +302,18 @@
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:alpha="0.5"
-                android:src="@android:drawable/arrow_up_float" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="20dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="12dp"
-            android:letterSpacing="0.1"
-            android:text="More"
-            android:textColor="#AAAACC"
-            android:textSize="12sp" />
-
-        <!-- Privacy row -->
+        <!-- Privacy & Security -->
         <LinearLayout
+            android:id="@+id/rowPrivacy"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="58dp"
             android:layout_marginHorizontal="20dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/bg_glass_item"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingHorizontal="16dp">
@@ -269,8 +321,8 @@
             <ImageView
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                app:tint="#BB86FC"
-                android:src="@android:drawable/ic_lock_lock" />
+                android:src="@android:drawable/ic_secure"
+                app:tint="#BB86FC" />
 
             <TextView
                 android:layout_width="0dp"
@@ -281,14 +333,63 @@
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
 
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:alpha="0.5"
-                android:src="@android:drawable/arrow_up_float" />
+
         </LinearLayout>
 
-        <!-- Logout button -->
+        <!-- ── SECTION: MORE ── -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="10dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.15"
+            android:text="MORE"
+            android:textColor="#AAAACC"
+            android:textSize="11sp" />
+
+        <!-- About -->
+        <LinearLayout
+            android:id="@+id/rowAbout"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_glass_item"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_info_details"
+                app:tint="#BB86FC" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="About &amp; Help"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="v1.0.0"
+                android:textColor="#666688"
+                android:textSize="11sp" />
+
+
+        </LinearLayout>
+
+        <!-- ── LOGOUT ── -->
         <Button
             android:id="@+id/btnLogout"
             android:layout_width="match_parent"
