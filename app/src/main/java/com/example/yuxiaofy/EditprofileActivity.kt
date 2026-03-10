@@ -5,21 +5,22 @@ import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import database.AppDatabase
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class EditProfileActivity : AppCompatActivity() {
+
+    private lateinit var auth: FirebaseAuth
+    private lateinit var db: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_edit_profile)
 
+        auth = FirebaseAuth.getInstance()
+        db = FirebaseFirestore.getInstance()
+
         val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val name = prefs.getString("logged_name", "") ?: ""
-        val email = prefs.getString("logged_email", "") ?: ""
 
         val tvAvatar = findViewById<TextView>(R.id.tvAvatarLetter)
         val etName = findViewById<EditText>(R.id.etEditName)
@@ -28,10 +29,21 @@ class EditProfileActivity : AppCompatActivity() {
         val btnBack = findViewById<ImageView>(R.id.btnBack)
         val progressBar = findViewById<ProgressBar>(R.id.editProfileProgress)
 
-        // Pre-fill data
-        etName.setText(name)
-        etEmail.setText(email)
-        tvAvatar.text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            finish()
+            return
+        }
+
+        // Lấy thông tin từ Firestore
+        db.collection("users").document(currentUser.uid).get()
+            .addOnSuccessListener { doc ->
+                val name = doc.getString("name") ?: ""
+                val email = currentUser.email ?: ""
+                etName.setText(name)
+                etEmail.setText(email)
+                tvAvatar.text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
+            }
 
         // Update avatar letter live
         etName.addTextChangedListener(object : android.text.TextWatcher {
@@ -39,9 +51,12 @@ class EditProfileActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 tvAvatar.text = s?.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
             }
-
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
+
+        // Email không cho sửa vì Firebase Auth không đổi email dễ dàng
+        etEmail.isEnabled = false
+        etEmail.alpha = 0.5f
 
         btnBack.setOnClickListener {
             finish()
@@ -50,58 +65,35 @@ class EditProfileActivity : AppCompatActivity() {
 
         btnSave.setOnClickListener {
             val newName = etName.text.toString().trim()
-            val newEmail = etEmail.text.toString().trim()
 
-            if (newName.isEmpty() || newEmail.isEmpty()) {
-                Toast.makeText(this, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
+            if (newName.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập tên", Toast.LENGTH_SHORT).show()
                 val shake = AnimationUtils.loadAnimation(this, R.anim.shake)
-                if (newName.isEmpty()) etName.startAnimation(shake)
-                if (newEmail.isEmpty()) etEmail.startAnimation(shake)
+                etName.startAnimation(shake)
                 return@setOnClickListener
             }
 
             progressBar.visibility = View.VISIBLE
             btnSave.isEnabled = false
 
-            lifecycleScope.launch(Dispatchers.IO) {
-                val db = AppDatabase.getDatabase(this@EditProfileActivity)
-
-                // Check if new email is taken by someone else
-                val existing = db.userDao().getUserByEmail(newEmail)
-                if (existing != null && existing.email != email) {
-                    withContext(Dispatchers.Main) {
-                        progressBar.visibility = View.GONE
-                        btnSave.isEnabled = true
-                        Toast.makeText(
-                            this@EditProfileActivity,
-                            "Email đã được sử dụng",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    return@launch
-                }
-
-                // Update DB
-                db.userDao().updateUser(email, newName, newEmail)
-
-                // Update SharedPreferences
-                withContext(Dispatchers.Main) {
-                    prefs.edit()
-                        .putString("logged_name", newName)
-                        .putString("logged_email", newEmail)
-                        .apply()
+            // Cập nhật tên lên Firestore
+            db.collection("users").document(currentUser.uid)
+                .update("name", newName)
+                .addOnSuccessListener {
+                    // Cập nhật SharedPreferences
+                    prefs.edit().putString("logged_name", newName).apply()
 
                     progressBar.visibility = View.GONE
                     btnSave.isEnabled = true
-                    Toast.makeText(
-                        this@EditProfileActivity,
-                        "Cập nhật thành công ✓",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this, "Cập nhật thành công ✓", Toast.LENGTH_SHORT).show()
                     finish()
                     overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                 }
-            }
+                .addOnFailureListener { e ->
+                    progressBar.visibility = View.GONE
+                    btnSave.isEnabled = true
+                    Toast.makeText(this, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
         }
 
         val slideIn = AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)

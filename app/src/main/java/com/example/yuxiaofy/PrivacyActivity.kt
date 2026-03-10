@@ -1,25 +1,28 @@
 package com.example.yuxiaofy
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import database.AppDatabase
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class PrivacyActivity : AppCompatActivity() {
+
+    private lateinit var auth: FirebaseAuth
+    private lateinit var db: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_privacy)
 
+        auth = FirebaseAuth.getInstance()
+        db = FirebaseFirestore.getInstance()
+
         val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val email = prefs.getString("logged_email", "") ?: ""
 
         val btnBack = findViewById<ImageView>(R.id.btnBack)
         val switchListenHist = findViewById<Switch>(R.id.switchListenHistory)
@@ -43,7 +46,7 @@ class PrivacyActivity : AppCompatActivity() {
                 .setTitle("Xóa lịch sử nghe")
                 .setMessage("Tất cả lịch sử nghe nhạc của bạn sẽ bị xóa. Không thể hoàn tác.")
                 .setPositiveButton("Xóa") { _, _ ->
-                    // TODO: clear listen history from DB when that table is added
+                    // TODO: clear listen history từ Firestore khi có collection đó
                     Toast.makeText(this, "Đã xóa lịch sử nghe ✓", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("Hủy", null)
@@ -55,27 +58,7 @@ class PrivacyActivity : AppCompatActivity() {
                 .setTitle("⚠️ Xóa tài khoản")
                 .setMessage("Tài khoản và toàn bộ dữ liệu của bạn sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.")
                 .setPositiveButton("Xóa tài khoản") { _, _ ->
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        val db = AppDatabase.getDatabase(this@PrivacyActivity)
-                        db.userDao().deleteUserByEmail(email)
-                        withContext(Dispatchers.Main) {
-                            prefs.edit().clear().apply()
-                            Toast.makeText(
-                                this@PrivacyActivity,
-                                "Tài khoản đã bị xóa",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            val intent = android.content.Intent(
-                                this@PrivacyActivity,
-                                LoginActivity::class.java
-                            ).apply {
-                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                                        android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            }
-                            startActivity(intent)
-                            overridePendingTransition(R.anim.fade_in_up, R.anim.fade_out)
-                        }
-                    }
+                    deleteAccount(prefs)
                 }
                 .setNegativeButton("Hủy", null)
                 .show()
@@ -88,5 +71,42 @@ class PrivacyActivity : AppCompatActivity() {
 
         val fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in_up)
         findViewById<View>(R.id.privacyContent).startAnimation(fadeIn)
+    }
+
+    private fun deleteAccount(prefs: android.content.SharedPreferences) {
+        val currentUser = auth.currentUser ?: return
+
+        // Xóa dữ liệu user trên Firestore trước
+        db.collection("users").document(currentUser.uid).delete()
+            .addOnSuccessListener {
+                // Xóa tài khoản Firebase Auth
+                currentUser.delete()
+                    .addOnSuccessListener {
+                        // Xóa SharedPreferences
+                        prefs.edit().clear().apply()
+
+                        Toast.makeText(this, "Tài khoản đã bị xóa", Toast.LENGTH_SHORT).show()
+
+                        startActivity(Intent(this, LoginActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        })
+                        overridePendingTransition(R.anim.fade_in_up, R.anim.fade_out)
+                    }
+                    .addOnFailureListener { e ->
+                        // Firebase yêu cầu đăng nhập lại gần đây mới xóa được
+                        if (e.message?.contains("requires recent authentication") == true) {
+                            Toast.makeText(
+                                this,
+                                "Vui lòng đăng xuất và đăng nhập lại trước khi xóa tài khoản!",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(this, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Lỗi xóa dữ liệu: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 }

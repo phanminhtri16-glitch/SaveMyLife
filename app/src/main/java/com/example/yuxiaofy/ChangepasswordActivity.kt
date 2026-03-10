@@ -5,20 +5,18 @@ import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import database.AppDatabase
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuth
 
 class ChangePasswordActivity : AppCompatActivity() {
+
+    private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_change_password)
 
-        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val email = prefs.getString("logged_email", "") ?: ""
+        auth = FirebaseAuth.getInstance()
 
         val etCurrentPass = findViewById<EditText>(R.id.etCurrentPassword)
         val etNewPass = findViewById<EditText>(R.id.etNewPassword)
@@ -26,38 +24,29 @@ class ChangePasswordActivity : AppCompatActivity() {
         val btnSave = findViewById<Button>(R.id.btnSavePassword)
         val btnBack = findViewById<ImageView>(R.id.btnBack)
         val progressBar = findViewById<ProgressBar>(R.id.changePassProgress)
-
-        // Password strength indicator
         val tvStrength = findViewById<TextView>(R.id.tvPasswordStrength)
         val strengthBar = findViewById<View>(R.id.passwordStrengthBar)
 
+        // Password strength indicator
         etNewPass.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val pass = s.toString()
                 val strength = getPasswordStrength(pass)
                 when (strength) {
-                    0 -> {
-                        tvStrength.text = ""; strengthBar.visibility = View.INVISIBLE
-                    }
-
+                    0 -> { tvStrength.text = ""; strengthBar.visibility = View.INVISIBLE }
                     1 -> {
                         tvStrength.text = "Yếu"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#FF4444"))
                         strengthBar.setBackgroundColor(android.graphics.Color.parseColor("#FF4444"))
                         strengthBar.visibility = View.VISIBLE
-                        strengthBar.layoutParams = strengthBar.layoutParams.also {
-                            (it as android.widget.LinearLayout.LayoutParams).weight = 1f
-                        }
                     }
-
                     2 -> {
                         tvStrength.text = "Trung bình"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#FFA500"))
                         strengthBar.setBackgroundColor(android.graphics.Color.parseColor("#FFA500"))
                         strengthBar.visibility = View.VISIBLE
                     }
-
                     3 -> {
                         tvStrength.text = "Mạnh ✓"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#44DD88"))
@@ -66,7 +55,6 @@ class ChangePasswordActivity : AppCompatActivity() {
                     }
                 }
             }
-
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
 
@@ -95,45 +83,43 @@ class ChangePasswordActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            val currentUser = auth.currentUser
+            val email = currentUser?.email
+
+            if (currentUser == null || email == null) {
+                Toast.makeText(this, "Vui lòng đăng nhập lại!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             progressBar.visibility = View.VISIBLE
             btnSave.isEnabled = false
 
-            lifecycleScope.launch(Dispatchers.IO) {
-                val db = AppDatabase.getDatabase(this@ChangePasswordActivity)
-                val user = db.userDao().login(email, currentPass)
-
-                withContext(Dispatchers.Main) {
+            // Xác thực lại với mật khẩu hiện tại trước
+            val credential = EmailAuthProvider.getCredential(email, currentPass)
+            currentUser.reauthenticate(credential)
+                .addOnSuccessListener {
+                    // Đổi mật khẩu mới
+                    currentUser.updatePassword(newPass)
+                        .addOnSuccessListener {
+                            progressBar.visibility = View.GONE
+                            btnSave.isEnabled = true
+                            Toast.makeText(this, "Đổi mật khẩu thành công ✓", Toast.LENGTH_SHORT).show()
+                            finish()
+                            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+                        }
+                        .addOnFailureListener { e ->
+                            progressBar.visibility = View.GONE
+                            btnSave.isEnabled = true
+                            Toast.makeText(this, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                }
+                .addOnFailureListener {
                     progressBar.visibility = View.GONE
                     btnSave.isEnabled = true
-
-                    if (user == null) {
-                        val shake =
-                            AnimationUtils.loadAnimation(this@ChangePasswordActivity, R.anim.shake)
-                        etCurrentPass.startAnimation(shake)
-                        Toast.makeText(
-                            this@ChangePasswordActivity,
-                            "Mật khẩu hiện tại không đúng",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            db.userDao().updatePassword(email, newPass)
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    this@ChangePasswordActivity,
-                                    "Đổi mật khẩu thành công ✓",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                finish()
-                                overridePendingTransition(
-                                    R.anim.slide_in_left,
-                                    R.anim.slide_out_right
-                                )
-                            }
-                        }
-                    }
+                    val shake = AnimationUtils.loadAnimation(this, R.anim.shake)
+                    etCurrentPass.startAnimation(shake)
+                    Toast.makeText(this, "Mật khẩu hiện tại không đúng!", Toast.LENGTH_SHORT).show()
                 }
-            }
         }
 
         val slideIn = AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)
