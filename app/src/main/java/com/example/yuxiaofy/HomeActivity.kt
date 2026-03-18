@@ -15,19 +15,25 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
 
 data class SongHome(
-    val title: String,
-    val artist: String,
-    val imageRes: Int,
+    val id: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val imageRes: Int = 0,
     var isFavorite: Boolean = false,
-    val duration: String = "3:30"
+    val duration: String = "3:30",
+    val audioUrl: String = "",
+    val coverUrl: String = "",
+    val category: String = ""
 )
 
 class HomeActivity : AppCompatActivity() {
 
+    private lateinit var db: FirebaseFirestore
     private lateinit var rvSongs: RecyclerView
     private lateinit var songAdapter: HomeSongAdapter
     private lateinit var listTitle: TextView
@@ -46,76 +52,16 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var btnNavSearch: LinearLayout
     private lateinit var btnNavFavorites: LinearLayout
     private lateinit var btnNavProfile: LinearLayout
+    private lateinit var progressBar: ProgressBar
 
-    private val chillList = listOf(
-        SongHome("Unity", "TheFatRat", R.drawable.ic_launcher_background, true, "3:48"),
-        SongHome(
-            "Monody",
-            "TheFatRat ft. Laura Brehm",
-            R.drawable.ic_launcher_background,
-            false,
-            "4:12"
-        ),
-        SongHome("Time Lapse", "TheFatRat", R.drawable.ic_launcher_background, false, "3:21"),
-        SongHome("Infinite Power", "TheFatRat", R.drawable.ic_launcher_background, true, "3:55"),
-        SongHome(
-            "The Calling",
-            "TheFatRat ft. Laura Brehm",
-            R.drawable.ic_launcher_background,
-            false,
-            "4:07"
-        )
-    )
-    private val workoutList = listOf(
-        SongHome("Stronger", "Kanye West", R.drawable.ic_launcher_background, false, "5:11"),
-        SongHome("Believer", "Imagine Dragons", R.drawable.ic_launcher_background, false, "3:23"),
-        SongHome("Radioactive", "Imagine Dragons", R.drawable.ic_launcher_background, true, "3:06"),
-        SongHome("HUMBLE.", "Kendrick Lamar", R.drawable.ic_launcher_background, false, "2:57")
-    )
-    private val focusList = listOf(
-        SongHome("River Flows in You", "Yiruma", R.drawable.ic_launcher_background, true, "3:52"),
-        SongHome("Weightless", "Marconi Union", R.drawable.ic_launcher_background, false, "8:09"),
-        SongHome(
-            "Experience",
-            "Ludovico Einaudi",
-            R.drawable.ic_launcher_background,
-            false,
-            "5:16"
-        ),
-        SongHome(
-            "Nuvole Bianche",
-            "Ludovico Einaudi",
-            R.drawable.ic_launcher_background,
-            false,
-            "5:57"
-        )
-    )
-    private val rbList = listOf(
-        SongHome("Blinding Lights", "The Weeknd", R.drawable.ic_launcher_background, true, "3:20"),
-        SongHome(
-            "Stay",
-            "Kid LAROI & Justin Bieber",
-            R.drawable.ic_launcher_background,
-            false,
-            "2:21"
-        ),
-        SongHome("Peaches", "Justin Bieber", R.drawable.ic_launcher_background, false, "3:18"),
-        SongHome(
-            "Leave The Door Open",
-            "Silk Sonic",
-            R.drawable.ic_launcher_background,
-            true,
-            "4:02"
-        )
-    )
-
+    private val allSongsFromDB = mutableListOf<SongHome>()
     private var currentCategory = "Chill"
-    private var allSongs = chillList.toMutableList()
+    private var allSongs = mutableListOf<SongHome>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
-
+        db = FirebaseFirestore.getInstance()
         bindViews()
         setupUserGreeting()
         setupRecyclerView()
@@ -124,6 +70,7 @@ class HomeActivity : AppCompatActivity() {
         setupMiniPlayer()
         setupBottomNav()
         animateEntrance()
+        loadSongsFromFirestore()
     }
 
     private fun bindViews() {
@@ -144,31 +91,59 @@ class HomeActivity : AppCompatActivity() {
         btnNavSearch = findViewById(R.id.btnNavSearch)
         btnNavFavorites = findViewById(R.id.btnNavFavorites)
         btnNavProfile = findViewById(R.id.btnNavProfile)
+        progressBar = findViewById(R.id.homeProgressBar)
+    }
+
+    private fun loadSongsFromFirestore() {
+        progressBar.visibility = View.VISIBLE
+        db.collection("songs").addSnapshotListener { snapshot, error ->
+            progressBar.visibility = View.GONE
+            if (error != null || snapshot == null) return@addSnapshotListener
+            allSongsFromDB.clear()
+            snapshot.documents.forEach { doc ->
+                allSongsFromDB.add(SongHome(
+                    id = doc.id,
+                    title = doc.getString("title") ?: "",
+                    artist = doc.getString("artist") ?: "",
+                    imageRes = R.drawable.ic_launcher_background,
+                    duration = doc.getString("duration") ?: "3:00",
+                    audioUrl = doc.getString("audioUrl") ?: "",
+                    coverUrl = doc.getString("coverUrl") ?: "",
+                    category = doc.getString("category") ?: ""
+                ))
+            }
+            filterByCategory(currentCategory)
+        }
+    }
+
+    private fun filterByCategory(category: String) {
+        currentCategory = category
+        allSongs = if (category == "Tất cả") allSongsFromDB.toMutableList()
+        else allSongsFromDB.filter { it.category.equals(category, ignoreCase = true) }.toMutableList()
+        val query = etSearch.text.toString().lowercase(Locale.getDefault())
+        songAdapter.updateData(if (query.isEmpty()) allSongs
+        else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) })
+        rvSongs.startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in_up))
     }
 
     private fun setupUserGreeting() {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val greeting = when (hour) {
-            in 5..11 -> "Good Morning,"
-            in 12..17 -> "Good Afternoon,"
-            else -> "Good Evening,"
-        }
-        tvGreeting.text = greeting
-
+        tvGreeting.text = when (hour) { in 5..11 -> "Good Morning,"; in 12..17 -> "Good Afternoon,"; else -> "Good Evening," }
         val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val name = prefs.getString("logged_name", "Music Lover") ?: "Music Lover"
-        tvUserName.text = name
+        tvUserName.text = prefs.getString("logged_name", "Music Lover") ?: "Music Lover"
     }
 
     private fun setupRecyclerView() {
         rvSongs.layoutManager = LinearLayoutManager(this)
         rvSongs.isNestedScrollingEnabled = false
-        songAdapter = HomeSongAdapter(chillList.toMutableList()) { song ->
-            val intent = Intent(this, MainActivity::class.java).apply {
+        songAdapter = HomeSongAdapter(mutableListOf()) { song ->
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                putExtra("SONG_ID", song.id)
                 putExtra("SONG_TITLE", song.title)
                 putExtra("SONG_ARTIST", song.artist)
-            }
-            startActivity(intent)
+                putExtra("SONG_AUDIO_URL", song.audioUrl)
+                putExtra("SONG_DURATION", song.duration)
+            })
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }
         rvSongs.adapter = songAdapter
@@ -176,30 +151,17 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupCategoryChips() {
         setActiveChip(btnChill)
-        btnChill.setOnClickListener { switchCategory(btnChill, "Chill Vibes", chillList, "Chill") }
-        btnWorkout.setOnClickListener {
-            switchCategory(
-                btnWorkout,
-                "Workout Energy",
-                workoutList,
-                "Workout"
-            )
-        }
-        btnFocus.setOnClickListener { switchCategory(btnFocus, "Deep Focus", focusList, "Focus") }
-        btnRB.setOnClickListener { switchCategory(btnRB, "R&B Classics", rbList, "RB") }
+        btnChill.setOnClickListener { switchCategory(btnChill, "Chill Vibes", "Chill") }
+        btnWorkout.setOnClickListener { switchCategory(btnWorkout, "Workout Energy", "Workout") }
+        btnFocus.setOnClickListener { switchCategory(btnFocus, "Deep Focus", "Focus") }
+        btnRB.setOnClickListener { switchCategory(btnRB, "R&B Classics", "RB") }
     }
 
-    private fun switchCategory(btn: TextView, title: String, songs: List<SongHome>, tag: String) {
+    private fun switchCategory(btn: TextView, title: String, tag: String) {
         if (currentCategory == tag) return
-        currentCategory = tag
         listOf(btnChill, btnWorkout, btnFocus, btnRB).forEach { resetChip(it) }
-        setActiveChip(btn)
-        listTitle.text = title
-        allSongs = songs.toMutableList()
-        songAdapter.updateData(allSongs)
+        setActiveChip(btn); listTitle.text = title; filterByCategory(tag)
         rvSongs.smoothScrollToPosition(0)
-        val anim = AnimationUtils.loadAnimation(this, R.anim.fade_in_up)
-        rvSongs.startAnimation(anim)
     }
 
     private fun setActiveChip(btn: TextView) {
@@ -217,53 +179,34 @@ class HomeActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = s.toString().lowercase(Locale.getDefault())
-                val filtered = if (query.isEmpty()) allSongs
-                else allSongs.filter {
-                    it.title.lowercase().contains(query) || it.artist.lowercase().contains(query)
-                }
-                songAdapter.updateData(filtered)
+                songAdapter.updateData(if (query.isEmpty()) allSongs
+                else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) })
             }
-
             override fun afterTextChanged(s: Editable?) {}
         })
     }
 
     private fun setupMiniPlayer() {
-        tvMiniTitle.text = "Unity"
-        tvMiniArtist.text = "TheFatRat"
+        tvMiniTitle.text = "Unity"; tvMiniArtist.text = "TheFatRat"
         miniPlayer.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }
-        btnMiniPlay.setOnClickListener {
-            // Toggle play icon
-            btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause)
-        }
+        btnMiniPlay.setOnClickListener { btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause) }
     }
 
     private fun setupBottomNav() {
-        btnNavHome.setOnClickListener { /* Already home */ }
-        btnNavSearch.setOnClickListener {
-            startActivity(Intent(this, SearchActivity::class.java))
-            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
-        }
-        btnNavFavorites.setOnClickListener {
-            startActivity(Intent(this, FavoritesActivity::class.java))
-            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
-        }
-        btnNavProfile.setOnClickListener {
-            startActivity(Intent(this, ProfileActivity::class.java))
-            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
-        }
+        btnNavHome.setOnClickListener { }
+        btnNavSearch.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
+        btnNavFavorites.setOnClickListener { startActivity(Intent(this, FavoritesActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
+        btnNavProfile.setOnClickListener { startActivity(Intent(this, ProfileActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
     }
 
     private fun animateEntrance() {
-        val fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in_up)
-        findViewById<View>(R.id.headerSection).startAnimation(fadeIn)
+        findViewById<View>(R.id.headerSection).startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in_up))
     }
 }
 
-// ─── ADAPTER ───────────────────────────────────────────────────────────────
 class HomeSongAdapter(
     private var songs: MutableList<SongHome>,
     private val onClick: (SongHome) -> Unit
@@ -278,47 +221,26 @@ class HomeSongAdapter(
         val container: View = v.findViewById(R.id.songItemContainer)
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_home_song, parent, false)
-        return VH(v)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_home_song, parent, false))
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
-        holder.title.text = s.title
-        holder.artist.text = s.artist
-        holder.duration.text = s.duration
-        try {
-            holder.img.setImageResource(s.imageRes)
-        } catch (e: Exception) {
-            holder.img.setImageResource(R.drawable.ic_launcher_background)
-        }
-
+        holder.title.text = s.title; holder.artist.text = s.artist; holder.duration.text = s.duration
+        holder.img.setImageResource(R.drawable.ic_launcher_background)
         updateHeartIcon(holder.heart, s.isFavorite)
         holder.heart.setOnClickListener {
-            s.isFavorite = !s.isFavorite
-            updateHeartIcon(holder.heart, s.isFavorite)
-            // Bounce animation
-            val bounce = AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce)
-            holder.heart.startAnimation(bounce)
+            s.isFavorite = !s.isFavorite; updateHeartIcon(holder.heart, s.isFavorite)
+            holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
         }
         holder.itemView.setOnClickListener { onClick(s) }
     }
 
     private fun updateHeartIcon(iv: ImageView, isFav: Boolean) {
-        if (isFav) {
-            iv.setImageResource(android.R.drawable.btn_star_big_on)
-            iv.setColorFilter(Color.parseColor("#FF4081"))
-        } else {
-            iv.setImageResource(android.R.drawable.btn_star_big_off)
-            iv.clearColorFilter()
-        }
+        if (isFav) { iv.setImageResource(android.R.drawable.btn_star_big_on); iv.setColorFilter(Color.parseColor("#FF4081")) }
+        else { iv.setImageResource(android.R.drawable.btn_star_big_off); iv.clearColorFilter() }
     }
 
     override fun getItemCount() = songs.size
-
-    fun updateData(newSongs: List<SongHome>) {
-        songs = newSongs.toMutableList()
-        notifyDataSetChanged()
-    }
+    fun updateData(newSongs: List<SongHome>) { songs = newSongs.toMutableList(); notifyDataSetChanged() }
 }

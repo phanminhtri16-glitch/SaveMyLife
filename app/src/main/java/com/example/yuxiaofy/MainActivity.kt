@@ -2,6 +2,8 @@ package com.example.yuxiaofy
 
 import android.animation.ObjectAnimator
 import android.graphics.Color
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -17,6 +19,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -33,17 +37,23 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnHeart: ImageView
     private var isFavorite = false
 
+    private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
-    private var progress = 0
-    private val totalDuration = 228 // 3:48 in seconds
+
+    private var songId = ""
+    private var audioUrl = ""
+
+    private lateinit var auth: FirebaseAuth
+    private lateinit var db: FirebaseFirestore
 
     private val progressRunnable = object : Runnable {
         override fun run() {
-            if (isPlaying && progress < totalDuration) {
-                progress++
-                seekBar.progress = progress
-                updateTimeDisplay()
-                handler.postDelayed(this, 1000)
+            mediaPlayer?.let { mp ->
+                if (mp.isPlaying) {
+                    seekBar.progress = mp.currentPosition
+                    updateTimeDisplay(mp.currentPosition / 1000)
+                    handler.postDelayed(this, 500)
+                }
             }
         }
     }
@@ -51,6 +61,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        auth = FirebaseAuth.getInstance()
+        db = FirebaseFirestore.getInstance()
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -63,8 +76,10 @@ class MainActivity : AppCompatActivity() {
         setupCoverArtAnimation()
         setupControls()
         setupSeekBar()
-        setupPlaylist()
         animateEntrance()
+        checkFavoriteStatus()
+
+        if (audioUrl.isNotEmpty()) initMediaPlayer(audioUrl)
     }
 
     private fun bindViews() {
@@ -79,13 +94,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSongInfo() {
+        songId = intent.getStringExtra("SONG_ID") ?: ""
         val title = intent.getStringExtra("SONG_TITLE") ?: "Unity"
         val artist = intent.getStringExtra("SONG_ARTIST") ?: "TheFatRat"
+        audioUrl = intent.getStringExtra("SONG_AUDIO_URL") ?: ""
+        val duration = intent.getStringExtra("SONG_DURATION") ?: "3:48"
         tvSongTitle.text = title
         tvArtistName.text = artist
-        tvTotalTime.text = "3:48"
+        tvTotalTime.text = duration
         tvCurrentTime.text = "0:00"
-        seekBar.max = totalDuration
+    }
+
+    private fun initMediaPlayer(url: String) {
+        mediaPlayer?.release()
+        val mp = MediaPlayer()
+        mp.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .build()
+        )
+        try {
+            mp.setDataSource(url)
+            mp.setOnPreparedListener { player ->
+                seekBar.max = player.duration
+                val totalSecs = player.duration / 1000
+                tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
+                player.start()
+                isPlaying = true
+                playBtn.setImageResource(android.R.drawable.ic_media_pause)
+                if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
+                handler.post(progressRunnable)
+            }
+            mp.setOnCompletionListener {
+                isPlaying = false
+                playBtn.setImageResource(android.R.drawable.ic_media_play)
+                rotateAnimator.pause()
+                handler.removeCallbacks(progressRunnable)
+            }
+            mp.setOnErrorListener { _, _, _ ->
+                Toast.makeText(this, "Không thể phát bài hát này!", Toast.LENGTH_SHORT).show()
+                true
+            }
+            mp.prepareAsync()
+            mediaPlayer = mp
+        } catch (e: Exception) {
+            Toast.makeText(this, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupCoverArtAnimation() {
@@ -98,9 +153,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupControls() {
-        playBtn.setOnClickListener {
-            if (isPlaying) pauseMusic() else playMusic()
-        }
+        playBtn.setOnClickListener { if (isPlaying) pauseMusic() else playMusic() }
 
         btnBack.setOnClickListener {
             finish()
@@ -108,34 +161,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnHeart.setOnClickListener {
-            isFavorite = !isFavorite
-            btnHeart.setImageResource(
-                if (isFavorite) android.R.drawable.btn_star_big_on
-                else android.R.drawable.btn_star_big_off
-            )
-            if (isFavorite) btnHeart.setColorFilter("#FF4081".toColorInt())
-            else btnHeart.clearColorFilter()
-            val bounce = AnimationUtils.loadAnimation(this, R.anim.heart_bounce)
-            btnHeart.startAnimation(bounce)
+            toggleFavorite()
+            btnHeart.startAnimation(AnimationUtils.loadAnimation(this, R.anim.heart_bounce))
         }
 
         findViewById<ImageView>(R.id.btnPrev).setOnClickListener {
-            progress = 0
-            seekBar.progress = 0
-            updateTimeDisplay()
+            mediaPlayer?.seekTo(0); seekBar.progress = 0; updateTimeDisplay(0)
         }
 
         findViewById<ImageView>(R.id.btnNext).setOnClickListener {
-            progress = 0
-            seekBar.progress = 0
-            updateTimeDisplay()
-            if (isPlaying) {
-                handler.removeCallbacks(progressRunnable)
-                handler.postDelayed(progressRunnable, 1000)
-            }
+            mediaPlayer?.seekTo(0); seekBar.progress = 0; updateTimeDisplay(0)
         }
 
-        // Shuffle & Repeat buttons
         val btnShuffle = findViewById<ImageView>(R.id.btnShuffle)
         val btnRepeat = findViewById<ImageView>(R.id.btnRepeat)
         var shuffleOn = false
@@ -148,17 +185,23 @@ class MainActivity : AppCompatActivity() {
         btnRepeat.setOnClickListener {
             repeatOn = !repeatOn
             btnRepeat.alpha = if (repeatOn) 1.0f else 0.4f
+            mediaPlayer?.isLooping = repeatOn
         }
     }
 
     private fun playMusic() {
-        isPlaying = true
-        playBtn.setImageResource(android.R.drawable.ic_media_pause)
-        if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
-        handler.postDelayed(progressRunnable, 1000)
+        mediaPlayer?.let { mp ->
+            mp.start(); isPlaying = true
+            playBtn.setImageResource(android.R.drawable.ic_media_pause)
+            if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
+            handler.post(progressRunnable)
+        } ?: run {
+            if (audioUrl.isNotEmpty()) initMediaPlayer(audioUrl)
+        }
     }
 
     private fun pauseMusic() {
+        mediaPlayer?.pause()
         isPlaying = false
         playBtn.setImageResource(android.R.drawable.ic_media_play)
         rotateAnimator.pause()
@@ -168,67 +211,70 @@ class MainActivity : AppCompatActivity() {
     private fun setupSeekBar() {
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    progress = p; updateTimeDisplay()
-                }
+                if (fromUser) { mediaPlayer?.seekTo(p); updateTimeDisplay(p / 1000) }
             }
-
-            override fun onStartTrackingTouch(sb: SeekBar?) {
-                handler.removeCallbacks(progressRunnable)
-            }
-
-            override fun onStopTrackingTouch(sb: SeekBar?) {
-                if (isPlaying) handler.postDelayed(progressRunnable, 1000)
-            }
+            override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(progressRunnable) }
+            override fun onStopTrackingTouch(sb: SeekBar?) { if (isPlaying) handler.post(progressRunnable) }
         })
     }
 
-    private fun setupPlaylist() {
-        val rv = findViewById<RecyclerView>(R.id.rvPlaylist)
-        rv.layoutManager = LinearLayoutManager(this)
-        val songs = listOf(
-            SongHome("Unity", "TheFatRat", R.drawable.ic_launcher_background, true, "3:48"),
-            SongHome(
-                "Monody",
-                "TheFatRat ft. Laura Brehm",
-                R.drawable.ic_launcher_background,
-                false,
-                "4:12"
-            ),
-            SongHome(
-                "The Calling",
-                "TheFatRat ft. Laura Brehm",
-                R.drawable.ic_launcher_background,
-                false,
-                "4:07"
-            ),
-            SongHome("Xenogenesis", "TheFatRat", R.drawable.ic_launcher_background, false, "5:01"),
-            SongHome(
-                "Fly Away",
-                "TheFatRat ft. Anjulie",
-                R.drawable.ic_launcher_background,
-                false,
-                "3:55"
-            ),
-            SongHome("Time Lapse", "TheFatRat", R.drawable.ic_launcher_background, false, "3:21")
-        )
-        rv.adapter = PlaylistAdapter(songs)
+    private fun checkFavoriteStatus() {
+        val userId = auth.currentUser?.uid ?: return
+        if (songId.isEmpty()) return
+        db.collection("favorites").document(userId).collection("songs").document(songId).get()
+            .addOnSuccessListener { doc -> isFavorite = doc.exists(); updateHeartIcon() }
+    }
+
+    private fun toggleFavorite() {
+        val userId = auth.currentUser?.uid ?: run {
+            Toast.makeText(this, "Vui lòng đăng nhập!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (songId.isEmpty()) return
+        val favRef = db.collection("favorites").document(userId).collection("songs").document(songId)
+        if (isFavorite) {
+            favRef.delete().addOnSuccessListener {
+                isFavorite = false; updateHeartIcon()
+                Toast.makeText(this, "Đã xóa khỏi yêu thích", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            favRef.set(mapOf("addedAt" to System.currentTimeMillis())).addOnSuccessListener {
+                isFavorite = true; updateHeartIcon()
+                Toast.makeText(this, "Đã thêm vào yêu thích!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun updateHeartIcon() {
+        if (isFavorite) {
+            btnHeart.setImageResource(android.R.drawable.btn_star_big_on)
+            btnHeart.setColorFilter("#FF4081".toColorInt())
+        } else {
+            btnHeart.setImageResource(android.R.drawable.btn_star_big_off)
+            btnHeart.clearColorFilter()
+        }
+    }
+
+    private fun updateTimeDisplay(secs: Int) {
+        tvCurrentTime.text = String.format(Locale.getDefault(), "%d:%02d", secs / 60, secs % 60)
     }
 
     private fun animateEntrance() {
-        val slideUp = AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)
-        findViewById<View>(R.id.playerContent).startAnimation(slideUp)
+        findViewById<View>(R.id.playerContent).startAnimation(
+            AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)
+        )
     }
 
-    private fun updateTimeDisplay() {
-        val mins = progress / 60
-        val secs = progress % 60
-        tvCurrentTime.text = String.format(Locale.getDefault(), "%d:%02d", mins, secs)
+    override fun onPause() {
+        super.onPause()
+        if (isPlaying) pauseMusic()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(progressRunnable)
+        mediaPlayer?.release()
+        mediaPlayer = null
         if (rotateAnimator.isRunning) rotateAnimator.cancel()
     }
 }
@@ -247,19 +293,15 @@ class PlaylistAdapter(private val songs: List<SongHome>) :
         val nowPlayingBar: View = v.findViewById(R.id.nowPlayingBar)
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, vt: Int): VH {
-        val v =
-            LayoutInflater.from(parent.context).inflate(R.layout.item_playlist_row, parent, false)
-        return VH(v)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, vt: Int): VH =
+        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_playlist_row, parent, false))
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[holder.bindingAdapterPosition]
         holder.tvTitle.text = s.title
         holder.tvArtist.text = s.artist
         holder.tvDuration.text = s.duration
-        holder.imgThumb.setImageResource(s.imageRes)
-
+        holder.imgThumb.setImageResource(R.drawable.ic_launcher_background)
         if (holder.bindingAdapterPosition == currentPlayingPos) {
             holder.tvTitle.setTextColor("#BB86FC".toColorInt())
             holder.tvIndex.setTextColor("#BB86FC".toColorInt())
@@ -271,7 +313,6 @@ class PlaylistAdapter(private val songs: List<SongHome>) :
             holder.nowPlayingBar.visibility = View.GONE
             holder.tvIndex.text = (holder.bindingAdapterPosition + 1).toString()
         }
-
         holder.itemView.setOnClickListener {
             val old = currentPlayingPos
             currentPlayingPos = holder.bindingAdapterPosition
