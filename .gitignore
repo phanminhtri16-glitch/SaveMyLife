@@ -1,15 +1,35 @@
-*.iml
+# ── Build outputs ──────────────────────────────────────
+/build
+app/build
+**/build/
+
+# ── Gradle ─────────────────────────────────────────────
 .gradle
 /local.properties
+gradle/wrapper/gradle-wrapper.jar
+.gradletasknamecache
+
+# ── Android Studio / IntelliJ ──────────────────────────
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+*.iml
 .DS_Store
-/build
 /captures
 .externalNativeBuild
 .cxx
+
+# ── Sensitive / local config ───────────────────────────
 local.properties
+google-services.json
+
+# ── Keystore / signing ─────────────────────────────────
+*.jks
+*.keystore
+
+# ── OS junk ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
