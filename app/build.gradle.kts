@@ -57,6 +57,10 @@ dependencies {
     // ✅ THÊM MỚI: Firestore - lưu dữ liệu bài hát, playlist, yêu thích
     implementation("com.google.firebase:firebase-firestore-ktx")
 
+    // Glide - load ảnh từ URL
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    kapt("com.github.bumptech.glide:compiler:4.16.0")
+
     // Room Database - cache offline
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

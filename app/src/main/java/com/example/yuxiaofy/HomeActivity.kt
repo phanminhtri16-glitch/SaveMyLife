@@ -15,6 +15,7 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
@@ -227,7 +228,16 @@ class HomeSongAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
         holder.title.text = s.title; holder.artist.text = s.artist; holder.duration.text = s.duration
-        holder.img.setImageResource(R.drawable.ic_launcher_background)
+        if (s.coverUrl.isNotEmpty()) {
+            Glide.with(holder.itemView.context)
+                .load(s.coverUrl)
+                .placeholder(R.drawable.ic_launcher_background)
+                .error(R.drawable.ic_launcher_background)
+                .centerCrop()
+                .into(holder.img)
+        } else {
+            holder.img.setImageResource(R.drawable.ic_launcher_background)
+        }
         updateHeartIcon(holder.heart, s.isFavorite)
         holder.heart.setOnClickListener {
             s.isFavorite = !s.isFavorite; updateHeartIcon(holder.heart, s.isFavorite)
