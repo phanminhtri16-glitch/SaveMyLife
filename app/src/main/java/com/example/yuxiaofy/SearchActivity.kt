@@ -42,30 +42,37 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun loadSongsFromFirestore() {
-        db.collection("songs").addSnapshotListener { snapshot, error ->
-            if (error != null || snapshot == null) return@addSnapshotListener
+        db.collection("songs").get().addOnSuccessListener { snapshot ->
             allSongs.clear()
-            snapshot.documents.forEach { doc ->
-                allSongs.add(SongHome(
+            for (doc in snapshot.documents) {
+                val song = SongHome(
                     id = doc.id,
                     title = doc.getString("title") ?: "",
                     artist = doc.getString("artist") ?: "",
-                    imageRes = R.drawable.ic_launcher_background,
-                    duration = doc.getString("duration") ?: "3:00",
+                    duration = doc.getString("duration") ?: "",
                     audioUrl = doc.getString("audioUrl") ?: "",
                     coverUrl = doc.getString("coverUrl") ?: "",
                     category = doc.getString("category") ?: ""
-                ))
+                )
+                allSongs.add(song)
             }
-            filterSongs(etSearch.text.toString().lowercase(Locale.getDefault()).trim())
         }
     }
 
     private fun filterSongs(query: String) {
-        val filtered = if (query.isEmpty()) allSongs
-        else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) }
+        if (query.isEmpty()) {
+            searchAdapter.updateData(emptyList())
+            tvResultCount.text = "0 kết quả"
+            layoutEmpty.visibility = View.VISIBLE
+            return
+        }
+
+        val filtered = allSongs.filter {
+            it.title.lowercase(Locale.getDefault()).contains(query) ||
+                    it.artist.lowercase(Locale.getDefault()).contains(query)
+        }
         searchAdapter.updateData(filtered)
-        tvResultCount.text = if (query.isEmpty()) "${allSongs.size} bài hát" else "${filtered.size} kết quả"
+        tvResultCount.text = "${filtered.size} kết quả"
         layoutEmpty.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 
@@ -88,6 +95,7 @@ class SearchActivity : AppCompatActivity() {
                 putExtra("SONG_ARTIST", song.artist)
                 putExtra("SONG_AUDIO_URL", song.audioUrl)
                 putExtra("SONG_DURATION", song.duration)
+                putExtra("SONG_COVER_ART_URL", song.coverUrl)
             })
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }
@@ -103,6 +111,6 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun animateEntrance() {
-        rvResults.startAnimation(AnimationUtils.loadAnimation(this, R.anim.slide_up_fade))
+        rvResults.startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in_up))
     }
 }
