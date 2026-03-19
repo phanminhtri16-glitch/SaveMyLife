@@ -41,38 +41,45 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun loadFavorites() {
+        val userId = auth.currentUser?.uid ?: run {
+            layoutEmpty.visibility = View.VISIBLE
+            progressBar.visibility = View.GONE
+            return
+        }
         progressBar.visibility = View.VISIBLE
-        val userId = auth.currentUser?.uid ?: return
 
-        db.collection("favorites").document(userId).collection("songs").get()
-            .addOnSuccessListener { snapshot ->
+        db.collection("favorites").document(userId).collection("songs")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) {
+                    progressBar.visibility = View.GONE
+                    return@addSnapshotListener
+                }
                 val songIds = snapshot.documents.map { it.id }
                 if (songIds.isEmpty()) {
                     progressBar.visibility = View.GONE
-                    adapter.updateData(emptyList())
+                    favoriteSongs.clear()
+                    adapter.updateData(favoriteSongs)
                     tvCount.text = "0 bài hát yêu thích"
                     layoutEmpty.visibility = View.VISIBLE
-                    return@addOnSuccessListener
+                    return@addSnapshotListener
                 }
-
                 favoriteSongs.clear()
                 var loadedCount = 0
-
-                for (id in songIds) {
-                    db.collection("songs").document(id).get()
+                songIds.forEach { songId ->
+                    db.collection("songs").document(songId).get()
                         .addOnSuccessListener { doc ->
                             if (doc.exists()) {
-                                val song = SongHome(
+                                favoriteSongs.add(SongHome(
                                     id = doc.id,
                                     title = doc.getString("title") ?: "",
                                     artist = doc.getString("artist") ?: "",
-                                    duration = doc.getString("duration") ?: "",
+                                    imageRes = R.drawable.ic_launcher_background,
+                                    isFavorite = true,
+                                    duration = doc.getString("duration") ?: "3:00",
                                     audioUrl = doc.getString("audioUrl") ?: "",
                                     coverUrl = doc.getString("coverUrl") ?: "",
-                                    category = doc.getString("category") ?: "",
-                                    isFavorite = true
-                                )
-                                favoriteSongs.add(song)
+                                    category = doc.getString("category") ?: ""
+                                ))
                             }
                             loadedCount++
                             if (loadedCount == songIds.size) {
@@ -95,7 +102,6 @@ class FavoritesActivity : AppCompatActivity() {
                 putExtra("SONG_ARTIST", song.artist)
                 putExtra("SONG_AUDIO_URL", song.audioUrl)
                 putExtra("SONG_DURATION", song.duration)
-                putExtra("SONG_COVER_ART_URL", song.coverUrl)
             })
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }

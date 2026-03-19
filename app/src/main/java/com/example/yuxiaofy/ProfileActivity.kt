@@ -30,6 +30,7 @@ class ProfileActivity : AppCompatActivity() {
         val tvPlaysCount = findViewById<TextView>(R.id.tvStatPlays)
         val tvHoursCount = findViewById<TextView>(R.id.tvStatHours)
 
+        // Row click targets
         val rowEditProfile = findViewById<View>(R.id.rowEditProfile)
         val rowChangePassword = findViewById<View>(R.id.rowChangePassword)
         val rowNotifications = findViewById<View>(R.id.rowNotifications)
@@ -57,18 +58,11 @@ class ProfileActivity : AppCompatActivity() {
                     .apply()
             }
 
-        // Tải số lượng Favorites thật từ Firestore
-        db.collection("favorites").document(currentUser.uid).collection("songs").get()
-            .addOnSuccessListener { snapshot ->
-                tvFavCount.text = snapshot.size().toString()
-            }
-            .addOnFailureListener {
-                tvFavCount.text = "0"
-            }
+        tvFavCount.text = "6"
+        tvPlaysCount.text = "42"
+        tvHoursCount.text = "12"
 
-        tvPlaysCount.text = "42" // Demo
-        tvHoursCount.text = "12" // Demo
-
+        // ── Navigation ──────────────────────────────────────────────────
         btnBack.setOnClickListener {
             finish()
             overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
@@ -105,6 +99,7 @@ class ProfileActivity : AppCompatActivity() {
             goToLogin()
         }
 
+        // Animate entrance
         val fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in_up)
         findViewById<View>(R.id.profileContent).startAnimation(fadeIn)
     }

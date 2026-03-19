@@ -1,9 +1,9 @@
 package com.example.yuxiaofy
 
 import android.animation.ObjectAnimator
-import android.content.ComponentName
 import android.graphics.Color
-import android.net.Uri
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,20 +14,11 @@ import android.view.animation.AnimationUtils
 import android.view.animation.LinearInterpolator
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
@@ -35,6 +26,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var rotateAnimator: ObjectAnimator
+    private var isPlaying = false
     private lateinit var seekBar: SeekBar
     private lateinit var tvCurrentTime: TextView
     private lateinit var tvTotalTime: TextView
@@ -43,31 +35,23 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvArtistName: TextView
     private lateinit var btnBack: ImageView
     private lateinit var btnHeart: ImageView
-    private lateinit var coverArt: ImageView
-    private lateinit var rvPlaylist: RecyclerView
     private var isFavorite = false
 
-    private var controllerFuture: ListenableFuture<MediaController>? = null
-    private val controller: MediaController? get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
-
+    private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
+
     private var songId = ""
     private var audioUrl = ""
-    private var coverArtUrl = ""
 
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
 
-    // Bổ sung danh sách playlist
-    private val playlistSongs = mutableListOf<SongHome>()
-    private lateinit var playlistAdapter: PlaylistAdapter
-
     private val progressRunnable = object : Runnable {
         override fun run() {
-            controller?.let { c ->
-                if (c.isPlaying) {
-                    seekBar.progress = c.currentPosition.toInt()
-                    updateTimeDisplay((c.currentPosition / 1000).toInt())
+            mediaPlayer?.let { mp ->
+                if (mp.isPlaying) {
+                    seekBar.progress = mp.currentPosition
+                    updateTimeDisplay(mp.currentPosition / 1000)
                     handler.postDelayed(this, 500)
                 }
             }
@@ -93,8 +77,9 @@ class MainActivity : AppCompatActivity() {
         setupControls()
         setupSeekBar()
         animateEntrance()
+        checkFavoriteStatus()
 
-        setupMediaController()
+        if (audioUrl.isNotEmpty()) initMediaPlayer(audioUrl)
     }
 
     private fun bindViews() {
@@ -106,30 +91,60 @@ class MainActivity : AppCompatActivity() {
         tvArtistName = findViewById(R.id.tvArtistName)
         btnBack = findViewById(R.id.btnBack)
         btnHeart = findViewById(R.id.btnHeart)
-        coverArt = findViewById(R.id.cover_art)
-        rvPlaylist = findViewById(R.id.rvPlaylist)
     }
 
     private fun setupSongInfo() {
-        // Load tạm thông tin từ trang trước để UI không bị trống
         songId = intent.getStringExtra("SONG_ID") ?: ""
         val title = intent.getStringExtra("SONG_TITLE") ?: "Unity"
         val artist = intent.getStringExtra("SONG_ARTIST") ?: "TheFatRat"
         audioUrl = intent.getStringExtra("SONG_AUDIO_URL") ?: ""
-        coverArtUrl = intent.getStringExtra("SONG_COVER_ART_URL") ?: ""
         val duration = intent.getStringExtra("SONG_DURATION") ?: "3:48"
-
         tvSongTitle.text = title
         tvArtistName.text = artist
         tvTotalTime.text = duration
         tvCurrentTime.text = "0:00"
-
-        if (coverArtUrl.isNotEmpty()) {
-            Glide.with(this).load(coverArtUrl).placeholder(R.drawable.bg_glow_circle).into(coverArt)
-        }
-        checkFavoriteStatus()
     }
+
+    private fun initMediaPlayer(url: String) {
+        mediaPlayer?.release()
+        val mp = MediaPlayer()
+        mp.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .build()
+        )
+        try {
+            mp.setDataSource(url)
+            mp.setOnPreparedListener { player ->
+                seekBar.max = player.duration
+                val totalSecs = player.duration / 1000
+                tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
+                player.start()
+                isPlaying = true
+                playBtn.setImageResource(android.R.drawable.ic_media_pause)
+                if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
+                handler.post(progressRunnable)
+            }
+            mp.setOnCompletionListener {
+                isPlaying = false
+                playBtn.setImageResource(android.R.drawable.ic_media_play)
+                rotateAnimator.pause()
+                handler.removeCallbacks(progressRunnable)
+            }
+            mp.setOnErrorListener { _, _, _ ->
+                Toast.makeText(this, "Không thể phát bài hát này!", Toast.LENGTH_SHORT).show()
+                true
+            }
+            mp.prepareAsync()
+            mediaPlayer = mp
+        } catch (e: Exception) {
+            Toast.makeText(this, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun setupCoverArtAnimation() {
+        val coverArt = findViewById<ImageView>(R.id.cover_art)
         rotateAnimator = ObjectAnimator.ofFloat(coverArt, "rotation", 0f, 360f).apply {
             duration = 12000
             repeatCount = ObjectAnimator.INFINITE
@@ -137,120 +152,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupMediaController() {
-        val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
-        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
-        controllerFuture?.addListener({
-            controller?.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) {
-                        playBtn.setImageResource(android.R.drawable.ic_media_pause)
-                        if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
-                        handler.post(progressRunnable)
-                    } else {
-                        playBtn.setImageResource(android.R.drawable.ic_media_play)
-                        rotateAnimator.pause()
-                        handler.removeCallbacks(progressRunnable)
-                    }
-                }
-
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        seekBar.max = controller?.duration?.toInt() ?: 0
-                        val totalSecs = (controller?.duration ?: 0) / 1000
-                        tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
-                    }
-                }
-
-                // Chạy khi bài hát bị thay đổi (bấm Next/Prev hoặc tự động qua bài)
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    super.onMediaItemTransition(mediaItem, reason)
-                    mediaItem?.let {
-                        songId = it.mediaId
-                        tvSongTitle.text = it.mediaMetadata.title
-                        tvArtistName.text = it.mediaMetadata.artist
-
-                        val cover = it.mediaMetadata.artworkUri?.toString() ?: ""
-                        if (cover.isNotEmpty()) {
-                            Glide.with(this@MainActivity).load(cover).placeholder(R.drawable.bg_glow_circle).into(coverArt)
-                        }
-
-                        // Cập nhật dòng sáng màu tím ở list Up Next
-                        val currentIndex = controller?.currentMediaItemIndex ?: 0
-                        if (::playlistAdapter.isInitialized) {
-                            playlistAdapter.updateCurrentPos(currentIndex)
-                            rvPlaylist.scrollToPosition(currentIndex)
-                        }
-
-                        checkFavoriteStatus()
-                    }
-                }
-            })
-
-            // Gọi hàm tải playlist
-            loadPlaylistAndPlay()
-
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun loadPlaylistAndPlay() {
-        db.collection("songs").get().addOnSuccessListener { snapshot ->
-            playlistSongs.clear()
-            val mediaItems = mutableListOf<MediaItem>()
-            var startIndex = 0
-
-            for ((index, doc) in snapshot.documents.withIndex()) {
-                val s = SongHome(
-                    id = doc.id,
-                    title = doc.getString("title") ?: "",
-                    artist = doc.getString("artist") ?: "",
-                    duration = doc.getString("duration") ?: "",
-                    audioUrl = doc.getString("audioUrl") ?: "",
-                    coverUrl = doc.getString("coverUrl") ?: ""
-                )
-                playlistSongs.add(s)
-
-                // Tìm vị trí của bài hát mà người dùng vừa click vào
-                if (s.id == songId) {
-                    startIndex = index
-                }
-
-                // Gắn metadata để lúc chuyển bài nó tự đổi Title, Artist, Cover
-                val metadata = MediaMetadata.Builder()
-                    .setTitle(s.title)
-                    .setArtist(s.artist)
-                    .setArtworkUri(if (s.coverUrl.isNotEmpty()) Uri.parse(s.coverUrl) else null)
-                    .build()
-
-                val mediaItem = MediaItem.Builder()
-                    .setMediaId(s.id)
-                    .setUri(s.audioUrl)
-                    .setMediaMetadata(metadata)
-                    .build()
-                mediaItems.add(mediaItem)
-            }
-
-            // Cài đặt RecyclerView danh sách Up Next
-            playlistAdapter = PlaylistAdapter(playlistSongs) { position ->
-                controller?.seekToDefaultPosition(position)
-                controller?.play()
-            }
-            rvPlaylist.layoutManager = LinearLayoutManager(this)
-            rvPlaylist.adapter = playlistAdapter
-
-            // Truyền cả mảng bài hát vào Media3 và phát ở vị trí startIndex
-            controller?.setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
-            controller?.prepare()
-            controller?.play()
-        }
-    }
-
     private fun setupControls() {
-        playBtn.setOnClickListener {
-            controller?.let { c ->
-                if (c.isPlaying) c.pause() else c.play()
-            }
-        }
+        playBtn.setOnClickListener { if (isPlaying) pauseMusic() else playMusic() }
 
         btnBack.setOnClickListener {
             finish()
@@ -262,20 +165,12 @@ class MainActivity : AppCompatActivity() {
             btnHeart.startAnimation(AnimationUtils.loadAnimation(this, R.anim.heart_bounce))
         }
 
-        // CHUYỂN BÀI TRƯỚC
         findViewById<ImageView>(R.id.btnPrev).setOnClickListener {
-            if (controller?.hasPreviousMediaItem() == true) {
-                controller?.seekToPreviousMediaItem()
-            } else {
-                controller?.seekTo(0)
-            }
+            mediaPlayer?.seekTo(0); seekBar.progress = 0; updateTimeDisplay(0)
         }
 
-        // CHUYỂN BÀI TIẾP THEO
         findViewById<ImageView>(R.id.btnNext).setOnClickListener {
-            if (controller?.hasNextMediaItem() == true) {
-                controller?.seekToNextMediaItem()
-            }
+            mediaPlayer?.seekTo(0); seekBar.progress = 0; updateTimeDisplay(0)
         }
 
         val btnShuffle = findViewById<ImageView>(R.id.btnShuffle)
@@ -286,29 +181,40 @@ class MainActivity : AppCompatActivity() {
         btnShuffle.setOnClickListener {
             shuffleOn = !shuffleOn
             btnShuffle.alpha = if (shuffleOn) 1.0f else 0.4f
-            controller?.shuffleModeEnabled = shuffleOn
         }
         btnRepeat.setOnClickListener {
             repeatOn = !repeatOn
             btnRepeat.alpha = if (repeatOn) 1.0f else 0.4f
-            controller?.repeatMode = if (repeatOn) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            mediaPlayer?.isLooping = repeatOn
         }
+    }
+
+    private fun playMusic() {
+        mediaPlayer?.let { mp ->
+            mp.start(); isPlaying = true
+            playBtn.setImageResource(android.R.drawable.ic_media_pause)
+            if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
+            handler.post(progressRunnable)
+        } ?: run {
+            if (audioUrl.isNotEmpty()) initMediaPlayer(audioUrl)
+        }
+    }
+
+    private fun pauseMusic() {
+        mediaPlayer?.pause()
+        isPlaying = false
+        playBtn.setImageResource(android.R.drawable.ic_media_play)
+        rotateAnimator.pause()
+        handler.removeCallbacks(progressRunnable)
     }
 
     private fun setupSeekBar() {
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    controller?.seekTo(p.toLong())
-                    updateTimeDisplay(p / 1000)
-                }
+                if (fromUser) { mediaPlayer?.seekTo(p); updateTimeDisplay(p / 1000) }
             }
-            override fun onStartTrackingTouch(sb: SeekBar?) {
-                handler.removeCallbacks(progressRunnable)
-            }
-            override fun onStopTrackingTouch(sb: SeekBar?) {
-                if (controller?.isPlaying == true) handler.post(progressRunnable)
-            }
+            override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(progressRunnable) }
+            override fun onStopTrackingTouch(sb: SeekBar?) { if (isPlaying) handler.post(progressRunnable) }
         })
     }
 
@@ -359,28 +265,24 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (isPlaying) pauseMusic()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(progressRunnable)
-        controllerFuture?.let { MediaController.releaseFuture(it) }
+        mediaPlayer?.release()
+        mediaPlayer = null
         if (rotateAnimator.isRunning) rotateAnimator.cancel()
     }
 }
 
-// Bổ sung callback onClick để bấm vào bài nào phát bài đó
-class PlaylistAdapter(
-    private val songs: List<SongHome>,
-    private val onClick: (Int) -> Unit
-) : RecyclerView.Adapter<PlaylistAdapter.VH>() {
+class PlaylistAdapter(private val songs: List<SongHome>) :
+    RecyclerView.Adapter<PlaylistAdapter.VH>() {
 
     private var currentPlayingPos = 0
-
-    fun updateCurrentPos(pos: Int) {
-        val old = currentPlayingPos
-        currentPlayingPos = pos
-        notifyItemChanged(old)
-        notifyItemChanged(pos)
-    }
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val tvIndex: TextView = v.findViewById(R.id.tvIndex)
@@ -399,14 +301,7 @@ class PlaylistAdapter(
         holder.tvTitle.text = s.title
         holder.tvArtist.text = s.artist
         holder.tvDuration.text = s.duration
-
-        // Load ảnh thật cho các bài trong danh sách Up Next
-        if (s.coverUrl.isNotEmpty()) {
-            Glide.with(holder.itemView.context).load(s.coverUrl).into(holder.imgThumb)
-        } else {
-            holder.imgThumb.setImageResource(R.drawable.ic_launcher_background)
-        }
-
+        holder.imgThumb.setImageResource(R.drawable.ic_launcher_background)
         if (holder.bindingAdapterPosition == currentPlayingPos) {
             holder.tvTitle.setTextColor("#BB86FC".toColorInt())
             holder.tvIndex.setTextColor("#BB86FC".toColorInt())
@@ -418,10 +313,11 @@ class PlaylistAdapter(
             holder.nowPlayingBar.visibility = View.GONE
             holder.tvIndex.text = (holder.bindingAdapterPosition + 1).toString()
         }
-
-        // Bấm bài nào, chạy bài đó
         holder.itemView.setOnClickListener {
-            onClick(holder.bindingAdapterPosition)
+            val old = currentPlayingPos
+            currentPlayingPos = holder.bindingAdapterPosition
+            notifyItemChanged(old)
+            notifyItemChanged(currentPlayingPos)
         }
     }
 

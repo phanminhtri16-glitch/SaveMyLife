@@ -1,6 +1,7 @@
 package com.example.yuxiaofy
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -48,6 +49,7 @@ class AdminActivity : AppCompatActivity() {
     private lateinit var adminUserAdapter: AdminUserAdapter
     private val userList = mutableListOf<AppUser>()
     private val filteredUserList = mutableListOf<AppUser>()
+    private var currentUserRoleFilter = "Tất cả"
 
     private lateinit var tvTotalSongs: TextView
     private lateinit var tvTotalUsers: TextView
@@ -88,7 +90,7 @@ class AdminActivity : AppCompatActivity() {
         rvSongs = findViewById(R.id.rvAdminSongs)
         rvUsers = findViewById(R.id.rvAdminUsers)
 
-        findViewById<Button>(R.id.btnAdminLogout).setOnClickListener {
+        findViewById<ImageButton>(R.id.btnAdminLogout).setOnClickListener {
             auth.signOut()
             getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE).edit().clear().apply()
             startActivity(Intent(this, LoginActivity::class.java).apply {
@@ -108,14 +110,36 @@ class AdminActivity : AppCompatActivity() {
     }
 
     private fun showTab(tab: String) {
-        layoutSongs.visibility = if (tab == "songs") View.VISIBLE else View.GONE
-        layoutUsers.visibility = if (tab == "users") View.VISIBLE else View.GONE
-        layoutStats.visibility = if (tab == "stats") View.VISIBLE else View.GONE
-        val active = android.graphics.Color.parseColor("#BB86FC")
-        val inactive = android.graphics.Color.WHITE
-        btnTabSongs.setTextColor(if (tab == "songs") active else inactive)
-        btnTabUsers.setTextColor(if (tab == "users") active else inactive)
-        btnTabStats.setTextColor(if (tab == "stats") active else inactive)
+        val views = listOf(layoutSongs, layoutUsers, layoutStats)
+        views.forEach { 
+            if (it.visibility == View.VISIBLE) {
+                it.animate().alpha(0f).setDuration(200).withEndAction {
+                    it.visibility = View.GONE
+                }
+            }
+        }
+
+        val activeView = when(tab) {
+            "songs" -> layoutSongs
+            "users" -> layoutUsers
+            else -> layoutStats
+        }
+
+        activeView.postDelayed({
+            activeView.visibility = View.VISIBLE
+            activeView.alpha = 0f
+            activeView.animate().alpha(1f).setDuration(300).start()
+        }, 210)
+
+        val activeColor = Color.parseColor("#BB86FC")
+        val inactiveColor = Color.WHITE
+        btnTabSongs.setTextColor(if (tab == "songs") activeColor else inactiveColor)
+        btnTabUsers.setTextColor(if (tab == "users") activeColor else inactiveColor)
+        btnTabStats.setTextColor(if (tab == "stats") activeColor else inactiveColor)
+        
+        btnTabSongs.setTypeface(null, if (tab == "songs") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        btnTabUsers.setTypeface(null, if (tab == "users") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        btnTabStats.setTypeface(null, if (tab == "stats") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
     }
 
     private fun setupSongManagement() {
@@ -138,7 +162,12 @@ class AdminActivity : AppCompatActivity() {
 
         val categories = arrayOf("Tất cả", "Chill", "Workout", "Focus", "RB")
         val spinner = findViewById<Spinner>(R.id.spinnerCategory)
-        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        
+        // Sử dụng layout tùy chỉnh spinner_item_admin để chữ màu trắng nổi bật
+        val adapter = ArrayAdapter(this, R.layout.spinner_item_admin, categories)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 currentCategory = categories[position]
@@ -173,7 +202,9 @@ class AdminActivity : AppCompatActivity() {
             etCategory.setText(it.category); etAudioUrl.setText(it.audioUrl)
             etCoverUrl.setText(it.coverUrl); etDuration.setText(it.duration)
         }
-        AlertDialog.Builder(this)
+        
+        // Áp dụng style AdminDialog để có background tối và nút tím
+        AlertDialog.Builder(this, R.style.AdminDialog)
             .setTitle(if (song == null) "Thêm bài hát" else "Sửa bài hát")
             .setView(dialogView)
             .setPositiveButton(if (song == null) "Thêm" else "Lưu") { _, _ ->
@@ -204,7 +235,7 @@ class AdminActivity : AppCompatActivity() {
     }
 
     private fun confirmDeleteSong(song: Song) {
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, R.style.AdminDialog)
             .setTitle("Xóa bài hát")
             .setMessage("Xóa \"${song.title}\"?")
             .setPositiveButton("Xóa") { _, _ ->
@@ -224,16 +255,37 @@ class AdminActivity : AppCompatActivity() {
 
         findViewById<EditText>(R.id.etSearchUser).addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { filterUsers(s.toString()) }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { 
+                filterUsers(s.toString(), currentUserRoleFilter) 
+            }
             override fun afterTextChanged(s: Editable?) {}
         })
+
+        val roles = arrayOf("Tất cả", "Admin", "User")
+        val spinner = findViewById<Spinner>(R.id.spinnerUserRole)
+        val adapter = ArrayAdapter(this, R.layout.spinner_item_admin, roles)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                currentUserRoleFilter = roles[position]
+                filterUsers(findViewById<EditText>(R.id.etSearchUser).text.toString(), currentUserRoleFilter)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
     }
 
-    private fun filterUsers(query: String) {
+    private fun filterUsers(query: String, role: String) {
         val q = query.lowercase(Locale.getDefault()).trim()
         filteredUserList.clear()
         filteredUserList.addAll(userList.filter { user ->
-            q.isEmpty() || user.name.lowercase().contains(q) || user.email.lowercase().contains(q)
+            val matchQuery = q.isEmpty() || user.name.lowercase().contains(q) || user.email.lowercase().contains(q)
+            val matchRole = when(role) {
+                "Admin" -> user.isAdmin
+                "User" -> !user.isAdmin
+                else -> true
+            }
+            matchQuery && matchRole
         })
         adminUserAdapter.notifyDataSetChanged()
         findViewById<TextView>(R.id.tvUserCount).text = "${filteredUserList.size} người dùng"
@@ -241,7 +293,7 @@ class AdminActivity : AppCompatActivity() {
 
     private fun toggleAdminRole(user: AppUser) {
         val newRole = !user.isAdmin
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, R.style.AdminDialog)
             .setTitle("Đổi quyền")
             .setMessage("Đặt ${user.name} thành ${if (newRole) "Admin" else "User"}?")
             .setPositiveButton("Xác nhận") { _, _ ->
@@ -252,7 +304,7 @@ class AdminActivity : AppCompatActivity() {
     }
 
     private fun confirmDeleteUser(user: AppUser) {
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, R.style.AdminDialog)
             .setTitle("Xóa tài khoản")
             .setMessage("Xóa tài khoản \"${user.email}\"?")
             .setPositiveButton("Xóa") { _, _ ->
@@ -290,26 +342,42 @@ class AdminActivity : AppCompatActivity() {
                     isAdmin = doc.getBoolean("isAdmin") ?: false
                 ))
             }
-            filterUsers(findViewById<EditText>(R.id.etSearchUser).text.toString())
+            filterUsers(findViewById<EditText>(R.id.etSearchUser).text.toString(), currentUserRoleFilter)
             updateStats()
         }
     }
 
     private fun updateStats() {
-        tvTotalSongs.text = songList.size.toString()
-        tvTotalUsers.text = userList.size.toString()
+        val totalSongs = songList.size
+        tvTotalSongs.text = totalSongs.toString()
+        val totalUsers = userList.size
+        tvTotalUsers.text = totalUsers.toString()
+
         val chillCount = songList.count { it.category.equals("Chill", ignoreCase = true) }
         val workoutCount = songList.count { it.category.equals("Workout", ignoreCase = true) }
         val focusCount = songList.count { it.category.equals("Focus", ignoreCase = true) }
         val rbCount = songList.count { it.category.equals("RB", ignoreCase = true) }
+        
+        findViewById<TextView>(R.id.tvStatChill).text = "$chillCount bài"
+        findViewById<TextView>(R.id.tvStatWorkout).text = "$workoutCount bài"
+        findViewById<TextView>(R.id.tvStatFocus).text = "$focusCount bài"
+        findViewById<TextView>(R.id.tvStatRB).text = "$rbCount bài"
+
+        if (totalSongs > 0) {
+            findViewById<ProgressBar>(R.id.pbChill).progress = (chillCount * 100 / totalSongs)
+            findViewById<ProgressBar>(R.id.pbWorkout).progress = (workoutCount * 100 / totalSongs)
+            findViewById<ProgressBar>(R.id.pbFocus).progress = (focusCount * 100 / totalSongs)
+            findViewById<ProgressBar>(R.id.pbRB).progress = (rbCount * 100 / totalSongs)
+        }
+
         val adminCount = userList.count { it.isAdmin }
-        val userCount = userList.count { !it.isAdmin }
-        findViewById<TextView>(R.id.tvStatChill).text = "Chill: $chillCount bài"
-        findViewById<TextView>(R.id.tvStatWorkout).text = "Workout: $workoutCount bài"
-        findViewById<TextView>(R.id.tvStatFocus).text = "Focus: $focusCount bài"
-        findViewById<TextView>(R.id.tvStatRB).text = "R&B: $rbCount bài"
-        findViewById<TextView>(R.id.tvStatAdmins).text = "Admin: $adminCount người"
-        findViewById<TextView>(R.id.tvStatUsers).text = "User: $userCount người"
+        val regularUserCount = userList.count { !it.isAdmin }
+        findViewById<TextView>(R.id.tvStatAdmins).text = "Admin: $adminCount"
+        findViewById<TextView>(R.id.tvStatUsers).text = "User: $regularUserCount"
+
+        if (totalUsers > 0) {
+            findViewById<ProgressBar>(R.id.pbUserRatio).progress = (adminCount * 100 / totalUsers)
+        }
     }
 }
 
@@ -354,8 +422,8 @@ class AdminUserAdapter(
         val u = users[position]
         holder.tvName.text = u.name; holder.tvEmail.text = u.email
         holder.tvRole.text = if (u.isAdmin) "Admin" else "User"
-        holder.tvRole.setTextColor(android.graphics.Color.parseColor(if (u.isAdmin) "#BB86FC" else "#AAAAAA"))
-        holder.btnToggle.text = if (u.isAdmin) "Hạ xuống User" else "Nâng lên Admin"
+        holder.tvRole.setTextColor(android.graphics.Color.parseColor(if (u.isAdmin) "#BB86FC" else "#03DAC6"))
+        holder.btnToggle.text = if (u.isAdmin) "Xoá quyền" else "Cấp quyền"
         holder.btnToggle.setOnClickListener { onToggleAdmin(u) }
         holder.btnDelete.setOnClickListener { onDelete(u) }
     }

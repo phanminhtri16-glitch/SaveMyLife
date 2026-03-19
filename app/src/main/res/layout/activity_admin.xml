@@ -1,337 +1,498 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F1A"
-    android:orientation="vertical">
+    android:background="@drawable/bg_main_gradient">
 
-    <!-- Header -->
+    <!-- Header Section -->
     <LinearLayout
+        android:id="@+id/headerAdmin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:paddingTop="32dp"
-        android:background="#1A1A2E">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="24dp"
+        app:layout_constraintTop_toTopOf="parent">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Admin Panel"
-            android:textColor="#BB86FC"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvAdminName"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="Xin chào, Admin"
-            android:textColor="#AAAAAA"
-            android:textSize="13sp" />
-
-        <!-- Stats Row -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:text="Dashboard"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp" />
+
+            <TextView
+                android:id="@+id/tvAdminName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chào quản trị viên!"
+                android:textColor="#B3FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnAdminLogout"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_glass_item"
+            android:src="@android:drawable/ic_lock_power_off"
+            app:tint="#FF5252" />
+    </LinearLayout>
+
+    <!-- Stats Cards -->
+    <LinearLayout
+        android:id="@+id/statsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="20dp"
+        app:layout_constraintTop_toBottomOf="@id/headerAdmin">
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_glass_item">
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="#2A2A3E"
+                android:gravity="center"
                 android:orientation="vertical"
-                android:padding="10dp"
-                android:layout_marginEnd="4dp">
+                android:padding="16dp">
+
                 <TextView
                     android:id="@+id/tvTotalSongs"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0"
                     android:textColor="#BB86FC"
-                    android:textSize="20sp"
+                    android:textSize="24sp"
                     android:textStyle="bold" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Bài hát"
-                    android:textColor="#888888"
-                    android:textSize="11sp" />
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="12sp" />
             </LinearLayout>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_glass_item">
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="#2A2A3E"
+                android:gravity="center"
                 android:orientation="vertical"
-                android:padding="10dp"
-                android:layout_marginStart="4dp">
+                android:padding="16dp">
+
                 <TextView
                     android:id="@+id/tvTotalUsers"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0"
                     android:textColor="#03DAC6"
-                    android:textSize="20sp"
+                    android:textSize="24sp"
                     android:textStyle="bold" />
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Người dùng"
-                    android:textColor="#888888"
-                    android:textSize="11sp" />
+                    android:text="Thành viên"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="12sp" />
             </LinearLayout>
-        </LinearLayout>
-
-        <!-- Action Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnGoHome"
-                android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="1"
-                android:layout_marginEnd="6dp"
-                android:background="#2A2A3E"
-                android:text="Xem Home"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/btnAdminLogout"
-                android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="1"
-                android:background="#FF4444"
-                android:text="Đăng xuất"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp" />
-        </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 
-    <!-- Tabs -->
+    <!-- Navigation Tabs -->
     <LinearLayout
+        android:id="@+id/tabLayoutCustom"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#1A1A2E"
-        android:orientation="horizontal">
+        android:layout_height="50dp"
+        android:layout_margin="20dp"
+        android:background="@drawable/bg_glass_item"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        app:layout_constraintTop_toBottomOf="@id/statsContainer">
 
         <TextView
             android:id="@+id/btnTabSongs"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="Bài hát"
+            android:text="NHẠC"
             android:textColor="#BB86FC"
-            android:textSize="13sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/btnTabUsers"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="Users"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
+            android:text="USERS"
+            android:textColor="#FFFFFF" />
 
         <TextView
             android:id="@+id/btnTabStats"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="Thống kê"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
+            android:text="THỐNG KÊ"
+            android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <!-- Tab: Songs -->
-    <LinearLayout
-        android:id="@+id/layoutSongs"
+    <!-- Main Content Area -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@id/bottomActions"
+        app:layout_constraintTop_toBottomOf="@id/tabLayoutCustom">
 
-        <!-- Search + Filter Row -->
+        <!-- Songs Tab Content -->
         <LinearLayout
+            android:id="@+id/layoutSongs"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp">
 
-            <EditText
-                android:id="@+id/etSearchSong"
-                android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:background="#1E1E2E"
-                android:hint="Tìm bài hát..."
-                android:textColorHint="#666688"
-                android:inputType="text"
-                android:paddingHorizontal="12dp"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="12dp"
+                android:orientation="horizontal">
 
-            <Spinner
-                android:id="@+id/spinnerCategory"
-                android:layout_width="120dp"
-                android:layout_height="42dp"
-                android:background="#1E1E2E" />
-        </LinearLayout>
+                <EditText
+                    android:id="@+id/etSearchSong"
+                    android:layout_width="0dp"
+                    android:layout_height="45dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_glass_item"
+                    android:hint="Tìm bài hát..."
+                    android:paddingHorizontal="16dp"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#80FFFFFF"
+                    android:textSize="14sp" />
 
-        <!-- Add + Count Row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+                <Spinner
+                    android:id="@+id/spinnerCategory"
+                    android:layout_width="110dp"
+                    android:layout_height="45dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_spinner_neon" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvSongCount"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginBottom="8dp"
                 android:text="0 bài hát"
-                android:textColor="#888888"
+                android:textColor="#80FFFFFF"
                 android:textSize="12sp" />
 
-            <Button
-                android:id="@+id/btnAddSong"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:background="#BB86FC"
-                android:text="+ Thêm"
-                android:textColor="#000000"
-                android:textSize="12sp" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvAdminSongs"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="20dp" />
         </LinearLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvAdminSongs"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-    </LinearLayout>
-
-    <!-- Tab: Users -->
-    <LinearLayout
-        android:id="@+id/layoutUsers"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="12dp"
-        android:visibility="gone">
-
-        <EditText
-            android:id="@+id/etSearchUser"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:layout_marginBottom="8dp"
-            android:background="#1E1E2E"
-            android:hint="Tìm user theo tên hoặc email..."
-            android:textColorHint="#666688"
-            android:inputType="text"
-            android:paddingHorizontal="12dp"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/tvUserCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="0 người dùng"
-            android:textColor="#888888"
-            android:textSize="12sp" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvAdminUsers"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-    </LinearLayout>
-
-    <!-- Tab: Stats -->
-    <ScrollView
-        android:id="@+id/layoutStats"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone">
-
+        <!-- Users Tab Content -->
         <LinearLayout
+            android:id="@+id/layoutUsers"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:paddingHorizontal="20dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="12dp"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etSearchUser"
+                    android:layout_width="0dp"
+                    android:layout_height="45dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_glass_item"
+                    android:hint="Tìm email hoặc tên..."
+                    android:paddingHorizontal="16dp"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#80FFFFFF"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/spinnerUserRole"
+                    android:layout_width="110dp"
+                    android:layout_height="45dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_spinner_neon" />
+            </LinearLayout>
 
             <TextView
+                android:id="@+id/tvUserCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Thống kê bài hát"
-                android:textColor="#BB86FC"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="10dp" />
+                android:layout_marginBottom="8dp"
+                android:text="0 người dùng"
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp" />
 
-            <TextView android:id="@+id/tvStatChill"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="Chill: 0 bài" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="6dp" />
-
-            <TextView android:id="@+id/tvStatWorkout"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="Workout: 0 bài" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="6dp" />
-
-            <TextView android:id="@+id/tvStatFocus"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="Focus: 0 bài" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="6dp" />
-
-            <TextView android:id="@+id/tvStatRB"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="R&amp;B: 0 bài" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="16dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Thống kê người dùng"
-                android:textColor="#03DAC6"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="10dp" />
-
-            <TextView android:id="@+id/tvStatAdmins"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="Admin: 0 người" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="6dp" />
-
-            <TextView android:id="@+id/tvStatUsers"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="User: 0 người" android:textColor="#FFFFFF"
-                android:textSize="14sp" android:padding="10dp"
-                android:background="#1E1E2E" android:layout_marginBottom="6dp" />
-
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvAdminUsers"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
         </LinearLayout>
-    </ScrollView>
 
-</LinearLayout>
+        <!-- Stats View -->
+        <ScrollView
+            android:id="@+id/layoutStats"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="Phân bổ thể loại nhạc"
+                    android:textColor="#BB86FC"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    android:background="@drawable/bg_glass_item"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Chill -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Chill"
+                            android:textColor="#FFFFFF" />
+                        <TextView
+                            android:id="@+id/tvStatChill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentRight="true"
+                            android:text="0 bài"
+                            android:textColor="#B3FFFFFF"
+                            android:textSize="12sp" />
+                    </RelativeLayout>
+                    <ProgressBar
+                        android:id="@+id/pbChill"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"
+                        android:progressDrawable="@drawable/pb_neon_gradient" />
+
+                    <!-- Workout -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Workout"
+                            android:textColor="#FFFFFF" />
+                        <TextView
+                            android:id="@+id/tvStatWorkout"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentRight="true"
+                            android:text="0 bài"
+                            android:textColor="#B3FFFFFF"
+                            android:textSize="12sp" />
+                    </RelativeLayout>
+                    <ProgressBar
+                        android:id="@+id/pbWorkout"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"
+                        android:progressDrawable="@drawable/pb_neon_gradient" />
+
+                    <!-- Focus -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Focus"
+                            android:textColor="#FFFFFF" />
+                        <TextView
+                            android:id="@+id/tvStatFocus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentRight="true"
+                            android:text="0 bài"
+                            android:textColor="#B3FFFFFF"
+                            android:textSize="12sp" />
+                    </RelativeLayout>
+                    <ProgressBar
+                        android:id="@+id/pbFocus"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="16dp"
+                        android:progressDrawable="@drawable/pb_neon_gradient" />
+
+                    <!-- RB -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="R&amp;B"
+                            android:textColor="#FFFFFF" />
+                        <TextView
+                            android:id="@+id/tvStatRB"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentRight="true"
+                            android:text="0 bài"
+                            android:textColor="#B3FFFFFF"
+                            android:textSize="12sp" />
+                    </RelativeLayout>
+                    <ProgressBar
+                        android:id="@+id/pbRB"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        android:progressDrawable="@drawable/pb_neon_gradient" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="Cơ cấu người dùng"
+                    android:textColor="#03DAC6"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_item"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:id="@+id/tvStatAdmins"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Admin: 0"
+                            android:textColor="#BB86FC"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+                        <TextView
+                            android:id="@+id/tvStatUsers"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="User: 0"
+                            android:textColor="#03DAC6"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/pbUserRatio"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="14dp"
+                        android:progressDrawable="@drawable/pb_neon_gradient" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
+
+    <!-- Bottom Actions -->
+    <LinearLayout
+        android:id="@+id/bottomActions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/btnGoHome"
+            android:layout_width="0dp"
+            android:layout_height="55dp"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_glass_item"
+            android:text="VỀ TRANG CHỦ"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnAddSong"
+            android:layout_width="0dp"
+            android:layout_height="55dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_button_neon"
+            android:text="+ THÊM NHẠC"
+            android:textColor="#000000"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

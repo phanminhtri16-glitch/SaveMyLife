@@ -3,28 +3,29 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    app:cardBackgroundColor="#1A1A2E"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="4dp">
+    android:layout_marginBottom="12dp"
+    android:layout_marginHorizontal="4dp"
+    app:cardBackgroundColor="#1AFFFFFF"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="14dp">
+        android:padding="12dp">
 
         <TextView
             android:id="@+id/tvUserAvatar"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="#BB86FC"
-            android:fontFamily="sans-serif-medium"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_glow_circle"
+            android:fontFamily="sans-serif-black"
             android:gravity="center"
-            android:text="M"
+            android:text="U"
             android:textColor="#000000"
-            android:textSize="18sp" />
+            android:textSize="20sp" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -41,7 +42,7 @@
                 android:singleLine="true"
                 android:text="User Name"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/tvUserEmail"
@@ -49,36 +50,42 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:singleLine="true"
-                android:text="email@email.com"
-                android:textColor="#888899"
-                android:textSize="11sp" />
+                android:text="email@example.com"
+                android:textColor="#B3FFFFFF"
+                android:textSize="12sp" />
 
             <TextView
                 android:id="@+id/tvUserRole"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="User"
-                android:textColor="#AAAAAA"
-                android:textSize="11sp" />
+                android:background="@drawable/bg_glass_item"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:text="USER"
+                android:textColor="#03DAC6"
+                android:textSize="10sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <Button
             android:id="@+id/btnToggleAdmin"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:layout_marginEnd="4dp"
-            android:background="#2A2A3E"
-            android:text="Nâng lên Admin"
-            android:textColor="#BB86FC"
-            android:textSize="10sp" />
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_glass_item"
+            android:paddingHorizontal="16dp"
+            android:text="Cấp quyền"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
         <ImageButton
             android:id="@+id/btnDeleteUser"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:background="@android:color/transparent"
-            android:padding="6dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_glass_item"
+            android:padding="8dp"
             android:src="@android:drawable/ic_menu_delete"
             app:tint="#FF5252" />
 
