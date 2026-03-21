@@ -6,6 +6,11 @@ import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import database.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -66,8 +71,17 @@ class ProfileActivity : AppCompatActivity() {
                 tvFavCount.text = "0"
             }
 
-        tvPlaysCount.text = "42" // Demo
-        tvHoursCount.text = "12" // Demo
+        // Lấy lịch sử nghe thật từ Room DB
+        lifecycleScope.launch(Dispatchers.IO) {
+            val db2 = AppDatabase.getDatabase(this@ProfileActivity)
+            val history = db2.listenHistoryDao().getRecentHistory()
+            withContext(Dispatchers.Main) {
+                tvPlaysCount.text = history.size.toString()
+                // Tính giờ nghe (ước tính mỗi bài ~3.5 phút)
+                val totalMins = history.size * 3.5
+                tvHoursCount.text = String.format("%.1f", totalMins / 60)
+            }
+        }
 
         btnBack.setOnClickListener {
             finish()
@@ -93,6 +107,15 @@ class ProfileActivity : AppCompatActivity() {
             startActivity(Intent(this, PrivacyActivity::class.java))
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
+
+        // Lịch sử nghe - thêm vào profile nếu có rowHistory
+        try {
+            val rowHistory = findViewById<View>(R.id.rowHistory)
+            rowHistory?.setOnClickListener {
+                startActivity(Intent(this, HistoryActivity::class.java))
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+            }
+        } catch (e: Exception) { }
 
         rowAbout.setOnClickListener {
             startActivity(Intent(this, AboutActivity::class.java))

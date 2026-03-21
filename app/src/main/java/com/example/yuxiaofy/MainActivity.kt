@@ -30,6 +30,11 @@ import com.bumptech.glide.Glide
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import androidx.lifecycle.lifecycleScope
+import database.AppDatabase
+import database.ListenHistory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -357,6 +362,18 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.playerContent).startAnimation(
             AnimationUtils.loadAnimation(this, R.anim.slide_up_fade)
         )
+    }
+
+    private fun saveToHistory(id: String, title: String, artist: String, coverUrl: String, audioUrl: String) {
+        if (id.isEmpty() || title.isEmpty()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val db = AppDatabase.getDatabase(this@MainActivity)
+            db.listenHistoryDao().addToHistory(
+                ListenHistory(songId = id, title = title, artist = artist, coverUrl = coverUrl, audioUrl = audioUrl)
+            )
+            // Xóa lịch sử cũ hơn 30 ngày
+            db.listenHistoryDao().deleteOldHistory(System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
+        }
     }
 
     override fun onDestroy() {
