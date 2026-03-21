@@ -11,12 +11,15 @@ interface ListenHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addToHistory(history: ListenHistory)
 
-    @Query("SELECT * FROM listen_history ORDER BY listenedAt DESC LIMIT 50")
-    suspend fun getRecentHistory(): List<ListenHistory>
+    // Lấy lịch sử theo userId
+    @Query("SELECT * FROM listen_history WHERE userId = :userId ORDER BY listenedAt DESC LIMIT 50")
+    suspend fun getHistoryByUser(userId: String): List<ListenHistory>
 
-    @Query("DELETE FROM listen_history")
-    suspend fun clearHistory()
+    // Xóa lịch sử của 1 user
+    @Query("DELETE FROM listen_history WHERE userId = :userId")
+    suspend fun clearHistoryByUser(userId: String)
 
-    @Query("DELETE FROM listen_history WHERE listenedAt < :timeLimit")
-    suspend fun deleteOldHistory(timeLimit: Long)
+    // Xóa lịch sử cũ của 1 user
+    @Query("DELETE FROM listen_history WHERE userId = :userId AND listenedAt < :timeLimit")
+    suspend fun deleteOldHistoryByUser(userId: String, timeLimit: Long)
 }

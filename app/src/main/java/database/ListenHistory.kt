@@ -6,6 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "listen_history")
 data class ListenHistory(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: String,        // ← phân biệt theo user
     val songId: String,
     val title: String,
     val artist: String,

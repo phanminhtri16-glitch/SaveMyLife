@@ -377,13 +377,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveToHistory(id: String, title: String, artist: String, coverUrl: String, audioUrl: String) {
         if (id.isEmpty() || title.isEmpty()) return
+        val userId = auth.currentUser?.uid ?: return  // Không lưu nếu chưa đăng nhập
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(this@MainActivity)
             db.listenHistoryDao().addToHistory(
-                ListenHistory(songId = id, title = title, artist = artist, coverUrl = coverUrl, audioUrl = audioUrl)
+                ListenHistory(userId = userId, songId = id, title = title, artist = artist, coverUrl = coverUrl, audioUrl = audioUrl)
             )
-            // Xóa lịch sử cũ hơn 30 ngày
-            db.listenHistoryDao().deleteOldHistory(System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
+            // Xóa lịch sử cũ hơn 30 ngày của user này
+            db.listenHistoryDao().deleteOldHistoryByUser(userId, System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
         }
     }
 

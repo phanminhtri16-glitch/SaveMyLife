@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.firebase.auth.FirebaseAuth
 import database.AppDatabase
 import database.ListenHistory
 import kotlinx.coroutines.Dispatchers
@@ -29,10 +30,13 @@ class HistoryActivity : AppCompatActivity() {
     private lateinit var tvCount: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var adapter: HistoryAdapter
+    private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_history)
+
+        auth = FirebaseAuth.getInstance()
 
         rvHistory = findViewById(R.id.rvHistory)
         layoutEmpty = findViewById(R.id.layoutEmpty)
@@ -46,10 +50,14 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun loadHistory() {
+        val userId = auth.currentUser?.uid ?: run {
+            layoutEmpty.visibility = View.VISIBLE
+            return
+        }
         progressBar.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(this@HistoryActivity)
-            val history = db.listenHistoryDao().getRecentHistory()
+            val history = db.listenHistoryDao().getHistoryByUser(userId)
             withContext(Dispatchers.Main) {
                 progressBar.visibility = View.GONE
                 adapter.updateData(history)
@@ -88,8 +96,10 @@ class HistoryActivity : AppCompatActivity() {
                 .setTitle("Xóa lịch sử")
                 .setMessage("Bạn có chắc muốn xóa toàn bộ lịch sử nghe không?")
                 .setPositiveButton("Xóa") { _, _ ->
+                    val userId = auth.currentUser?.uid ?: return@setPositiveButton
                     lifecycleScope.launch(Dispatchers.IO) {
-                        AppDatabase.getDatabase(this@HistoryActivity).listenHistoryDao().clearHistory()
+                        AppDatabase.getDatabase(this@HistoryActivity)
+                            .listenHistoryDao().clearHistoryByUser(userId)
                         withContext(Dispatchers.Main) {
                             adapter.updateData(emptyList())
                             tvCount.text = "0 bài đã nghe"
@@ -139,8 +149,7 @@ class HistoryAdapter(
     }
 
     private fun formatTime(timestamp: Long): String {
-        val now = System.currentTimeMillis()
-        val diff = now - timestamp
+        val diff = System.currentTimeMillis() - timestamp
         return when {
             diff < 60_000 -> "Vừa nghe"
             diff < 3_600_000 -> "${diff / 60_000} phút trước"

@@ -7,12 +7,12 @@ import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 
 class ProfileActivity : AppCompatActivity() {
 
@@ -42,42 +42,32 @@ class ProfileActivity : AppCompatActivity() {
         val rowAbout = findViewById<View>(R.id.rowAbout)
 
         val currentUser = auth.currentUser
-        if (currentUser == null) {
-            goToLogin(); return
-        }
+        if (currentUser == null) { goToLogin(); return }
 
         tvEmail.text = currentUser.email ?: ""
         tvName.text = "Music Lover"
 
+        // Lấy tên từ Firestore
         db.collection("users").document(currentUser.uid).get()
             .addOnSuccessListener { doc ->
                 val name = doc.getString("name") ?: "Music Lover"
                 tvName.text = name
                 tvAvatar.text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
-
                 val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-                prefs.edit()
-                    .putString("logged_name", name)
-                    .putString("logged_email", currentUser.email)
-                    .apply()
+                prefs.edit().putString("logged_name", name).putString("logged_email", currentUser.email).apply()
             }
 
-        // Tải số lượng Favorites thật từ Firestore
+        // Lấy số favorites thật từ Firestore
         db.collection("favorites").document(currentUser.uid).collection("songs").get()
-            .addOnSuccessListener { snapshot ->
-                tvFavCount.text = snapshot.size().toString()
-            }
-            .addOnFailureListener {
-                tvFavCount.text = "0"
-            }
+            .addOnSuccessListener { snapshot -> tvFavCount.text = snapshot.size().toString() }
+            .addOnFailureListener { tvFavCount.text = "0" }
 
         // Lấy lịch sử nghe thật từ Room DB
         lifecycleScope.launch(Dispatchers.IO) {
-            val db2 = AppDatabase.getDatabase(this@ProfileActivity)
-            val history = db2.listenHistoryDao().getRecentHistory()
+            val localDb = AppDatabase.getDatabase(this@ProfileActivity)
+            val history = localDb.listenHistoryDao().getHistoryByUser(currentUser.uid)
             withContext(Dispatchers.Main) {
                 tvPlaysCount.text = history.size.toString()
-                // Tính giờ nghe (ước tính mỗi bài ~3.5 phút)
                 val totalMins = history.size * 3.5
                 tvHoursCount.text = String.format("%.1f", totalMins / 60)
             }
@@ -108,7 +98,7 @@ class ProfileActivity : AppCompatActivity() {
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
 
-        // Lịch sử nghe - thêm vào profile nếu có rowHistory
+        // Lịch sử nghe
         try {
             val rowHistory = findViewById<View>(R.id.rowHistory)
             rowHistory?.setOnClickListener {
