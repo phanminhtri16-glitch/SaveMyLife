@@ -105,14 +105,18 @@
 
             <!-- ── FEATURED BANNER ── -->
             <androidx.cardview.widget.CardView
+                android:id="@+id/featuredCard"
                 android:layout_width="match_parent"
                 android:layout_height="160dp"
                 android:layout_marginHorizontal="20dp"
                 android:layout_marginBottom="24dp"
+                android:clickable="true"
+                android:focusable="true"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="12dp">
 
                 <ImageView
+                    android:id="@+id/imgFeaturedBanner"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:scaleType="centerCrop"
@@ -139,10 +143,11 @@
                         android:textSize="11sp" />
 
                     <TextView
+                        android:id="@+id/tvFeaturedTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="Unity — TheFatRat"
+                        android:text="Đang tải..."
                         android:textColor="#FFFFFF"
                         android:textSize="18sp" />
                 </LinearLayout>

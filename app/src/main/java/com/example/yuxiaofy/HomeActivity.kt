@@ -15,6 +15,7 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Calendar
 import java.util.Locale
@@ -128,7 +129,11 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupUserGreeting() {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        tvGreeting.text = when (hour) { in 5..11 -> "Good Morning,"; in 12..17 -> "Good Afternoon,"; else -> "Good Evening," }
+        tvGreeting.text = when (hour) {
+            in 5..11 -> "Good Morning,"
+            in 12..17 -> "Good Afternoon,"
+            else -> "Good Evening,"
+        }
         val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
         tvUserName.text = prefs.getString("logged_name", "Music Lover") ?: "Music Lover"
     }
@@ -142,6 +147,7 @@ class HomeActivity : AppCompatActivity() {
                 putExtra("SONG_TITLE", song.title)
                 putExtra("SONG_ARTIST", song.artist)
                 putExtra("SONG_AUDIO_URL", song.audioUrl)
+                putExtra("SONG_COVER_URL", song.coverUrl)
                 putExtra("SONG_DURATION", song.duration)
             })
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
@@ -187,7 +193,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMiniPlayer() {
-        tvMiniTitle.text = "Unity"; tvMiniArtist.text = "TheFatRat"
+        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
+        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
+        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
+        if (nowTitle.isNotEmpty()) {
+            tvMiniTitle.text = nowTitle
+            tvMiniArtist.text = nowArtist
+        } else {
+            tvMiniTitle.text = "Chưa phát bài nào"
+            tvMiniArtist.text = ""
+        }
         miniPlayer.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
@@ -197,9 +212,29 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupBottomNav() {
         btnNavHome.setOnClickListener { }
-        btnNavSearch.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
-        btnNavFavorites.setOnClickListener { startActivity(Intent(this, FavoritesActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
-        btnNavProfile.setOnClickListener { startActivity(Intent(this, ProfileActivity::class.java)); overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left) }
+        btnNavSearch.setOnClickListener {
+            startActivity(Intent(this, SearchActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
+        btnNavFavorites.setOnClickListener {
+            startActivity(Intent(this, FavoritesActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
+        btnNavProfile.setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
+        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
+        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
+        if (nowTitle.isNotEmpty()) {
+            tvMiniTitle.text = nowTitle
+            tvMiniArtist.text = nowArtist
+        }
     }
 
     private fun animateEntrance() {
@@ -226,11 +261,26 @@ class HomeSongAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
-        holder.title.text = s.title; holder.artist.text = s.artist; holder.duration.text = s.duration
-        holder.img.setImageResource(R.drawable.ic_launcher_background)
+        holder.title.text = s.title
+        holder.artist.text = s.artist
+        holder.duration.text = s.duration
+
+        // Load ảnh bìa bằng Glide
+        if (s.coverUrl.isNotEmpty()) {
+            Glide.with(holder.itemView.context)
+                .load(s.coverUrl)
+                .placeholder(R.drawable.ic_launcher_background)
+                .error(R.drawable.ic_launcher_background)
+                .centerCrop()
+                .into(holder.img)
+        } else {
+            holder.img.setImageResource(R.drawable.ic_launcher_background)
+        }
+
         updateHeartIcon(holder.heart, s.isFavorite)
         holder.heart.setOnClickListener {
-            s.isFavorite = !s.isFavorite; updateHeartIcon(holder.heart, s.isFavorite)
+            s.isFavorite = !s.isFavorite
+            updateHeartIcon(holder.heart, s.isFavorite)
             holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
         }
         holder.itemView.setOnClickListener { onClick(s) }

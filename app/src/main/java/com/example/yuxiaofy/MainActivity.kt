@@ -188,6 +188,17 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         checkFavoriteStatus()
+
+                        // Lưu bài đang phát vào SharedPreferences cho Mini Player
+                        getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE).edit()
+                            .putString("now_playing_title", it.mediaMetadata.title?.toString() ?: "")
+                            .putString("now_playing_artist", it.mediaMetadata.artist?.toString() ?: "")
+                            .apply()
+
+                        // Lưu lịch sử nghe
+                        val coverUrl = it.mediaMetadata.artworkUri?.toString() ?: ""
+                        val audioUrl = it.localConfiguration?.uri?.toString() ?: ""
+                        saveToHistory(it.mediaId, it.mediaMetadata.title?.toString() ?: "", it.mediaMetadata.artist?.toString() ?: "", coverUrl, audioUrl)
                     }
                 }
             })
