@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_main_gradient">
 
-    <!-- Scrollable player content -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/playerContent"
         android:layout_width="match_parent"
@@ -20,7 +19,6 @@
             android:paddingHorizontal="24dp"
             android:paddingBottom="40dp">
 
-            <!-- ── TOP BAR ── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -56,28 +54,53 @@
                     android:src="@android:drawable/btn_star_big_off" />
             </LinearLayout>
 
-            <!-- ── COVER ART ── -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="280dp"
-                android:layout_height="280dp"
-                android:layout_gravity="center"
-                app:cardBackgroundColor="#2D2B55"
-                app:cardCornerRadius="140dp"
-                app:cardElevation="24dp">
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="320dp"
+                android:layout_marginTop="10dp">
 
-                <ImageView
-                    android:id="@+id/cover_art"
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardCoverArt"
+                    android:layout_width="280dp"
+                    android:layout_height="280dp"
+                    android:layout_gravity="center"
+                    app:cardBackgroundColor="#2D2B55"
+                    app:cardCornerRadius="140dp"
+                    app:cardElevation="24dp">
+
+                    <ImageView
+                        android:id="@+id/cover_art"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_launcher_background" />
+                </androidx.cardview.widget.CardView>
+
+                <ScrollView
+                    android:id="@+id/scrollLyrics"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_launcher_background" />
-            </androidx.cardview.widget.CardView>
+                    android:background="@drawable/bg_input_glass"
+                    android:visibility="gone"
+                    android:padding="16dp"
+                    android:scrollbars="none">
 
-            <!-- ── SONG INFO ── -->
+                    <TextView
+                        android:id="@+id/tvLyrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:lineSpacingExtra="8dp"
+                        android:text="Đang tìm lời bài hát..."
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp" />
+                </ScrollView>
+            </FrameLayout>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
+                android:layout_marginTop="12dp"
                 android:gravity="center"
                 android:orientation="vertical">
 
@@ -100,7 +123,6 @@
                     android:textSize="15sp" />
             </LinearLayout>
 
-            <!-- ── SEEKBAR ── -->
             <SeekBar
                 android:id="@+id/seekBar"
                 android:layout_width="match_parent"
@@ -139,33 +161,47 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- ── SHUFFLE / REPEAT ── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
                 android:gravity="center"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:baselineAligned="false">
 
-                <ImageView
-                    android:id="@+id/btnShuffle"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:alpha="0.4"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_popup_sync" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center">
 
-                <!-- PREV -->
+                    <ImageView
+                        android:id="@+id/btnLyrics"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:alpha="0.4"
+                        android:padding="6dp"
+                        android:src="@android:drawable/ic_menu_sort_by_size" />
+
+                    <ImageView
+                        android:id="@+id/btnShuffle"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginTop="8dp"
+                        android:alpha="0.4"
+                        android:padding="6dp"
+                        android:src="@android:drawable/ic_popup_sync" />
+                </LinearLayout>
+
                 <ImageView
                     android:id="@+id/btnPrev"
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginHorizontal="12dp"
                     android:background="@drawable/bg_input_glass"
                     android:padding="10dp"
                     android:src="@android:drawable/ic_media_rew" />
 
-                <!-- PLAY/PAUSE FAB -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="68dp"
                     android:layout_height="68dp"
@@ -182,27 +218,25 @@
                         android:src="@android:drawable/ic_media_play" />
                 </androidx.cardview.widget.CardView>
 
-                <!-- NEXT -->
                 <ImageView
                     android:id="@+id/btnNext"
                     android:layout_width="52dp"
                     android:layout_height="52dp"
-                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginHorizontal="12dp"
                     android:background="@drawable/bg_input_glass"
                     android:padding="10dp"
                     android:src="@android:drawable/ic_media_ff" />
 
                 <ImageView
                     android:id="@+id/btnRepeat"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:alpha="0.4"
                     android:padding="6dp"
                     android:src="@android:drawable/ic_menu_rotate" />
 
             </LinearLayout>
 
-            <!-- ── UP NEXT ── -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
