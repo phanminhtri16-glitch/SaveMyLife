@@ -1,7 +1,11 @@
 package com.example.yuxiaofy
 
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -17,10 +21,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
+import database.DownloadedSong
 import database.SearchHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 
 class SearchActivity : AppCompatActivity() {
@@ -139,21 +145,65 @@ class SearchActivity : AppCompatActivity() {
 
     private fun setupRecyclerView() {
         rvResults.layoutManager = LinearLayoutManager(this)
-        searchAdapter = HomeSongAdapter(mutableListOf()) { song ->
-            saveSearchQuery(etSearch.text.toString())
+        searchAdapter = HomeSongAdapter(mutableListOf(),
+            onItemClick = { song ->
+                saveSearchQuery(etSearch.text.toString())
 
-            val intent = Intent(this, MainActivity::class.java).apply {
-                putExtra("SONG_ID", song.id)
-                putExtra("SONG_TITLE", song.title)
-                putExtra("SONG_ARTIST", song.artist)
-                putExtra("SONG_AUDIO_URL", song.audioUrl)
-                putExtra("SONG_COVER_ART_URL", song.coverUrl)
-                putExtra("SONG_DURATION", song.duration)
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    putExtra("SONG_ID", song.id)
+                    putExtra("SONG_TITLE", song.title)
+                    putExtra("SONG_ARTIST", song.artist)
+                    putExtra("SONG_AUDIO_URL", song.audioUrl)
+                    putExtra("SONG_COVER_URL", song.coverUrl)
+                    putExtra("SONG_DURATION", song.duration)
+                }
+                startActivity(intent)
+                overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
+            },
+            onDownloadClick = { song ->
+                downloadSong(song)
             }
-            startActivity(intent)
-            overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
-        }
+        )
         rvResults.adapter = searchAdapter
+    }
+
+    private fun downloadSong(song: SongHome) {
+        if (song.audioUrl.isEmpty()) {
+            Toast.makeText(this, "Không tìm thấy đường dẫn tải!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = AppDatabase.getDatabase(this@SearchActivity)
+            val existing = dbLocal.downloadedSongDao().getDownloadedSongById(song.id)
+            if (existing != null) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@SearchActivity, "Đã tải về rồi!", Toast.LENGTH_SHORT).show() }
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) { Toast.makeText(this@SearchActivity, "Bắt đầu tải: ${song.title}", Toast.LENGTH_SHORT).show() }
+
+            try {
+                val fileName = "${song.id}.mp3"
+                val request = DownloadManager.Request(Uri.parse(song.audioUrl))
+                    .setTitle(song.title)
+                    .setDestinationInExternalFilesDir(this@SearchActivity, Environment.DIRECTORY_MUSIC, fileName)
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                dm.enqueue(request)
+
+                val localPath = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), fileName).absolutePath
+                val downloadedSong = DownloadedSong(
+                    id = song.id, title = song.title, artist = song.artist,
+                    audioUrl = song.audioUrl, localPath = localPath, coverUrl = song.coverUrl, duration = song.duration
+                )
+                dbLocal.downloadedSongDao().insert(downloadedSong)
+
+                withContext(Dispatchers.Main) { Toast.makeText(this@SearchActivity, "Đã thêm vào danh sách tải xuống!", Toast.LENGTH_SHORT).show() }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@SearchActivity, "Lỗi tải: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+        }
     }
 
     private fun setupHistoryRecyclerView() {

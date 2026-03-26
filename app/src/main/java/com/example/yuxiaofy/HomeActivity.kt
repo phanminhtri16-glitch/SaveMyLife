@@ -1,8 +1,12 @@
 package com.example.yuxiaofy
 
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -13,10 +17,17 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.firebase.firestore.FirebaseFirestore
+import database.AppDatabase
+import database.DownloadedSong
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Calendar
 import java.util.Locale
 
@@ -124,7 +135,6 @@ class HomeActivity : AppCompatActivity() {
         val query = etSearch.text.toString().lowercase(Locale.getDefault())
         songAdapter.updateData(if (query.isEmpty()) allSongs
         else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) })
-        rvSongs.startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in_up))
     }
 
     private fun setupUserGreeting() {
@@ -141,18 +151,62 @@ class HomeActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         rvSongs.layoutManager = LinearLayoutManager(this)
         rvSongs.isNestedScrollingEnabled = false
-        songAdapter = HomeSongAdapter(mutableListOf()) { song ->
-            startActivity(Intent(this, MainActivity::class.java).apply {
-                putExtra("SONG_ID", song.id)
-                putExtra("SONG_TITLE", song.title)
-                putExtra("SONG_ARTIST", song.artist)
-                putExtra("SONG_AUDIO_URL", song.audioUrl)
-                putExtra("SONG_COVER_URL", song.coverUrl)
-                putExtra("SONG_DURATION", song.duration)
-            })
-            overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
-        }
+        songAdapter = HomeSongAdapter(mutableListOf(), 
+            onItemClick = { song ->
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    putExtra("SONG_ID", song.id)
+                    putExtra("SONG_TITLE", song.title)
+                    putExtra("SONG_ARTIST", song.artist)
+                    putExtra("SONG_AUDIO_URL", song.audioUrl)
+                    putExtra("SONG_COVER_URL", song.coverUrl)
+                    putExtra("SONG_DURATION", song.duration)
+                })
+                overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
+            },
+            onDownloadClick = { song ->
+                downloadSong(song)
+            }
+        )
         rvSongs.adapter = songAdapter
+    }
+
+    private fun downloadSong(song: SongHome) {
+        if (song.audioUrl.isEmpty()) {
+            Toast.makeText(this, "Không tìm thấy đường dẫn tải!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = AppDatabase.getDatabase(this@HomeActivity)
+            val existing = dbLocal.downloadedSongDao().getDownloadedSongById(song.id)
+            if (existing != null) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Đã tải về rồi!", Toast.LENGTH_SHORT).show() }
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Bắt đầu tải: ${song.title}", Toast.LENGTH_SHORT).show() }
+
+            try {
+                val fileName = "${song.id}.mp3"
+                val request = DownloadManager.Request(Uri.parse(song.audioUrl))
+                    .setTitle(song.title)
+                    .setDestinationInExternalFilesDir(this@HomeActivity, Environment.DIRECTORY_MUSIC, fileName)
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                dm.enqueue(request)
+
+                val localPath = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), fileName).absolutePath
+                val downloadedSong = DownloadedSong(
+                    id = song.id, title = song.title, artist = song.artist,
+                    audioUrl = song.audioUrl, localPath = localPath, coverUrl = song.coverUrl, duration = song.duration
+                )
+                dbLocal.downloadedSongDao().insert(downloadedSong)
+
+                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Đã thêm vào danh sách tải xuống!", Toast.LENGTH_SHORT).show() }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Lỗi tải: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+        }
     }
 
     private fun setupCategoryChips() {
@@ -244,7 +298,8 @@ class HomeActivity : AppCompatActivity() {
 
 class HomeSongAdapter(
     private var songs: MutableList<SongHome>,
-    private val onClick: (SongHome) -> Unit
+    private val onItemClick: (SongHome) -> Unit,
+    private val onDownloadClick: (SongHome) -> Unit
 ) : RecyclerView.Adapter<HomeSongAdapter.VH>() {
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -253,7 +308,7 @@ class HomeSongAdapter(
         val duration: TextView = v.findViewById(R.id.tvDuration)
         val img: ImageView = v.findViewById(R.id.imgSongCover)
         val heart: ImageView = v.findViewById(R.id.btnHeart)
-        val container: View = v.findViewById(R.id.songItemContainer)
+        val download: ImageView = v.findViewById(R.id.btnHomeDownload)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
@@ -265,16 +320,12 @@ class HomeSongAdapter(
         holder.artist.text = s.artist
         holder.duration.text = s.duration
 
-        // Load ảnh bìa bằng Glide
         if (s.coverUrl.isNotEmpty()) {
             Glide.with(holder.itemView.context)
                 .load(s.coverUrl)
                 .placeholder(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
                 .centerCrop()
                 .into(holder.img)
-        } else {
-            holder.img.setImageResource(R.drawable.ic_launcher_background)
         }
 
         updateHeartIcon(holder.heart, s.isFavorite)
@@ -283,7 +334,15 @@ class HomeSongAdapter(
             updateHeartIcon(holder.heart, s.isFavorite)
             holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
         }
-        holder.itemView.setOnClickListener { onClick(s) }
+
+        holder.download.setOnClickListener { 
+            onDownloadClick(s)
+            holder.download.animate().scaleX(1.2f).scaleY(1.2f).setDuration(200).withEndAction {
+                holder.download.animate().scaleX(1.0f).scaleY(1.0f).start()
+            }
+        }
+
+        holder.itemView.setOnClickListener { onItemClick(s) }
     }
 
     private fun updateHeartIcon(iv: ImageView, isFav: Boolean) {

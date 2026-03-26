@@ -1,8 +1,10 @@
 package com.example.yuxiaofy
 
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
@@ -22,6 +24,7 @@ class MusicService : MediaSessionService() {
     companion object {
         private var cache: SimpleCache? = null
 
+        @OptIn(UnstableApi::class)
         fun getCache(service: MusicService): SimpleCache {
             if (cache == null) {
                 val cacheDir = File(service.cacheDir, "media_cache")
@@ -34,6 +37,7 @@ class MusicService : MediaSessionService() {
         }
     }
 
+    @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
 
@@ -54,10 +58,13 @@ class MusicService : MediaSessionService() {
             .setReadTimeoutMs(30_000)
             .setAllowCrossProtocolRedirects(true)
 
+        // SỬ DỤNG DefaultDataSource.Factory để hỗ trợ cả file://, content://, v.v...
+        val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+
         // Cache DataSource - lưu nhạc xuống máy khi phát
         val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(getCache(this))
-            .setUpstreamDataSourceFactory(httpDataSourceFactory)
+            .setUpstreamDataSourceFactory(defaultDataSourceFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         player = ExoPlayer.Builder(this)

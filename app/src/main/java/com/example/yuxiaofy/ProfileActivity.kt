@@ -40,6 +40,8 @@ class ProfileActivity : AppCompatActivity() {
         val rowNotifications = findViewById<View>(R.id.rowNotifications)
         val rowPrivacy = findViewById<View>(R.id.rowPrivacy)
         val rowAbout = findViewById<View>(R.id.rowAbout)
+        val rowHistory = findViewById<View>(R.id.rowHistory)
+        val rowDownloads = findViewById<View>(R.id.rowDownloads)
 
         val currentUser = auth.currentUser
         if (currentUser == null) { goToLogin(); return }
@@ -98,14 +100,15 @@ class ProfileActivity : AppCompatActivity() {
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
 
-        // Lịch sử nghe
-        try {
-            val rowHistory = findViewById<View>(R.id.rowHistory)
-            rowHistory?.setOnClickListener {
-                startActivity(Intent(this, HistoryActivity::class.java))
-                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
-            }
-        } catch (e: Exception) { }
+        rowHistory?.setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
+
+        rowDownloads?.setOnClickListener {
+            startActivity(Intent(this, DownloadsActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
 
         rowAbout.setOnClickListener {
             startActivity(Intent(this, AboutActivity::class.java))

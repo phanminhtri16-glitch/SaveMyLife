@@ -71,6 +71,16 @@
             android:textColor="#666688"
             android:textSize="11sp" />
 
+        <!-- Download -->
+        <ImageView
+            android:id="@+id/btnHomeDownload"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="8dp"
+            android:padding="4dp"
+            android:src="@android:drawable/stat_sys_download"
+            app:tint="#AAAACC" />
+
         <!-- Heart -->
         <ImageView
             android:id="@+id/btnHeart"

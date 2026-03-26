@@ -1,10 +1,13 @@
 package com.example.yuxiaofy
 
 import android.animation.ObjectAnimator
+import android.app.DownloadManager
 import android.content.ComponentName
+import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
@@ -18,6 +21,7 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -30,15 +34,21 @@ import com.bumptech.glide.Glide
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import database.AppDatabase
+import database.DownloadedSong
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 
-// CLASS ĐỘC LẬP ĐỂ KHÔNG BỊ LỖI LỆCH KIỂU DỮ LIỆU
 data class LocalSong(
     val id: String,
     val title: String,
     val artist: String,
     val audioUrl: String,
-    val coverUrl: String
+    val coverUrl: String,
+    val duration: String = "3:00"
 )
 
 @androidx.media3.common.util.UnstableApi
@@ -58,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     private var isFavorite = false
 
     private lateinit var btnLyrics: ImageView
+    private lateinit var btnDownload: ImageView
     private lateinit var scrollLyrics: ScrollView
     private lateinit var tvLyrics: TextView
     private lateinit var cardCoverArt: CardView
@@ -68,8 +79,12 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var songId = ""
-    private var audioUrl = ""
+    private var audioUrl = "" 
     private var coverArtUrl = ""
+    private var currentSongTitle = ""
+    private var currentArtist = ""
+    private var currentDuration = ""
+    private var isLocalMode = false
 
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
@@ -123,6 +138,7 @@ class MainActivity : AppCompatActivity() {
         coverArt = findViewById(R.id.cover_art)
         rvPlaylist = findViewById(R.id.rvPlaylist)
         btnLyrics = findViewById(R.id.btnLyrics)
+        btnDownload = findViewById(R.id.btnDownload)
         scrollLyrics = findViewById(R.id.scrollLyrics)
         tvLyrics = findViewById(R.id.tvLyrics)
         cardCoverArt = findViewById(R.id.cardCoverArt)
@@ -130,17 +146,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupSongInfo() {
         songId = intent.getStringExtra("SONG_ID") ?: ""
-        tvSongTitle.text = intent.getStringExtra("SONG_TITLE") ?: "Unknown"
-        tvArtistName.text = intent.getStringExtra("SONG_ARTIST") ?: "Unknown"
+        currentSongTitle = intent.getStringExtra("SONG_TITLE") ?: "Unknown"
+        currentArtist = intent.getStringExtra("SONG_ARTIST") ?: "Unknown"
         audioUrl = intent.getStringExtra("SONG_AUDIO_URL") ?: ""
-        coverArtUrl = intent.getStringExtra("SONG_COVER_ART_URL") ?: ""
-        tvTotalTime.text = intent.getStringExtra("SONG_DURATION") ?: "0:00"
+        coverArtUrl = intent.getStringExtra("SONG_COVER_URL") ?: intent.getStringExtra("SONG_COVER_ART_URL") ?: ""
+        currentDuration = intent.getStringExtra("SONG_DURATION") ?: "0:00"
+        isLocalMode = intent.getBooleanExtra("IS_LOCAL", false)
+
+        tvSongTitle.text = currentSongTitle
+        tvArtistName.text = currentArtist
+        tvTotalTime.text = currentDuration
         tvCurrentTime.text = "0:00"
 
         if (coverArtUrl.isNotEmpty()) {
             Glide.with(this).load(coverArtUrl).placeholder(R.drawable.bg_glow_circle).into(coverArt)
         }
         checkFavoriteStatus()
+        checkDownloadStatus()
     }
 
     private fun setupCoverArtAnimation() {
@@ -178,18 +200,28 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     super.onMediaItemTransition(mediaItem, reason)
-                    mediaItem?.let {
-                        songId = it.mediaId
-                        tvSongTitle.text = it.mediaMetadata.title
-                        tvArtistName.text = it.mediaMetadata.artist
-                        val cover = it.mediaMetadata.artworkUri?.toString() ?: ""
-                        if (cover.isNotEmpty()) {
-                            Glide.with(this@MainActivity).load(cover).placeholder(R.drawable.bg_glow_circle).into(coverArt)
+                    mediaItem?.let { item ->
+                        songId = item.mediaId
+                        val found = playlistSongs.find { it.id == songId }
+                        if (found != null) {
+                            currentSongTitle = found.title
+                            currentArtist = found.artist
+                            audioUrl = found.audioUrl
+                            coverArtUrl = found.coverUrl
+                            currentDuration = found.duration
+
+                            tvSongTitle.text = currentSongTitle
+                            tvArtistName.text = currentArtist
+                            if (coverArtUrl.isNotEmpty()) {
+                                Glide.with(this@MainActivity).load(coverArtUrl).placeholder(R.drawable.bg_glow_circle).into(coverArt)
+                            }
                         }
+                        
                         val currentIndex = controller?.currentMediaItemIndex ?: 0
                         if (::musicAdapter.isInitialized) musicAdapter.updateCurrentPos(currentIndex)
                         checkFavoriteStatus()
-                        if (isLyricsVisible) fetchLyrics(it.mediaMetadata.artist?.toString() ?: "", it.mediaMetadata.title?.toString() ?: "")
+                        checkDownloadStatus()
+                        if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
                     }
                 }
             })
@@ -198,26 +230,86 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPlaylistAndPlay() {
-        db.collection("songs").get().addOnSuccessListener { snapshot ->
-            playlistSongs.clear()
-            val mediaItems = mutableListOf<MediaItem>()
-            var startIndex = 0
-            for ((index, doc) in snapshot.documents.withIndex()) {
-                val s = LocalSong(
-                    id = doc.id,
-                    title = doc.getString("title") ?: "",
-                    artist = doc.getString("artist") ?: "",
-                    audioUrl = doc.getString("audioUrl") ?: "",
-                    coverUrl = doc.getString("coverUrl") ?: ""
-                )
-                playlistSongs.add(s)
-                if (s.id == songId) startIndex = index
-                val metadata = MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setArtworkUri(if (s.coverUrl.isNotEmpty()) Uri.parse(s.coverUrl) else null).build()
-                mediaItems.add(MediaItem.Builder().setMediaId(s.id).setUri(s.audioUrl).setMediaMetadata(metadata).build())
+        if (isLocalMode) {
+            // Chế độ Offline: Sử dụng SQLite (Room) để lấy danh sách bài hát
+            lifecycleScope.launch(Dispatchers.IO) {
+                val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+                val downloadedList = dbLocal.downloadedSongDao().getAllDownloadedSongs()
+                withContext(Dispatchers.Main) {
+                    playlistSongs.clear()
+                    val mediaItems = mutableListOf<MediaItem>()
+                    var startIndex = 0
+                    var actualIndex = 0
+                    
+                    downloadedList.forEach { s ->
+                        val file = File(s.localPath)
+                        if (file.exists()) {
+                            playlistSongs.add(LocalSong(s.id, s.title, s.artist, s.localPath, s.coverUrl, s.duration))
+                            if (s.id == songId) startIndex = actualIndex
+                            
+                            val metadata = MediaMetadata.Builder()
+                                .setTitle(s.title)
+                                .setArtist(s.artist)
+                                .setArtworkUri(Uri.parse(s.coverUrl))
+                                .build()
+                            
+                            mediaItems.add(MediaItem.Builder()
+                                .setMediaId(s.id)
+                                .setUri(Uri.fromFile(file))
+                                .setMediaMetadata(metadata)
+                                .build())
+                            actualIndex++
+                        }
+                    }
+                    
+                    if (mediaItems.isNotEmpty()) {
+                        updateAdapterAndPlay(mediaItems, startIndex)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Không tìm thấy file nhạc trên thiết bị!", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
-            musicAdapter = MusicPlayerAdapter(playlistSongs) { pos -> controller?.seekToDefaultPosition(pos); controller?.play() }
-            rvPlaylist.layoutManager = LinearLayoutManager(this); rvPlaylist.adapter = musicAdapter
-            controller?.setMediaItems(mediaItems, startIndex, C.TIME_UNSET); controller?.prepare(); controller?.play()
+        } else {
+            // Chế độ Online: Lấy từ Firebase
+            db.collection("songs").get().addOnSuccessListener { snapshot ->
+                playlistSongs.clear()
+                val mediaItems = mutableListOf<MediaItem>()
+                var startIndex = 0
+                snapshot.documents.forEachIndexed { index, doc ->
+                    val s = LocalSong(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "",
+                        artist = doc.getString("artist") ?: "",
+                        audioUrl = doc.getString("audioUrl") ?: "",
+                        coverUrl = doc.getString("coverUrl") ?: "",
+                        duration = doc.getString("duration") ?: "3:00"
+                    )
+                    playlistSongs.add(s)
+                    if (s.id == songId) startIndex = index
+                    val metadata = MediaMetadata.Builder()
+                        .setTitle(s.title).setArtist(s.artist)
+                        .setArtworkUri(if (s.coverUrl.isNotEmpty()) Uri.parse(s.coverUrl) else null).build()
+                    mediaItems.add(MediaItem.Builder()
+                        .setMediaId(s.id).setUri(s.audioUrl)
+                        .setMediaMetadata(metadata).build())
+                }
+                updateAdapterAndPlay(mediaItems, startIndex)
+            }
+        }
+    }
+
+    private fun updateAdapterAndPlay(items: List<MediaItem>, startIdx: Int) {
+        musicAdapter = MusicPlayerAdapter(playlistSongs) { pos -> 
+            controller?.seekToDefaultPosition(pos)
+            controller?.play() 
+        }
+        rvPlaylist.layoutManager = LinearLayoutManager(this)
+        rvPlaylist.adapter = musicAdapter
+        
+        controller?.let { c ->
+            c.setMediaItems(items, startIdx, C.TIME_UNSET)
+            c.prepare()
+            c.play()
         }
     }
 
@@ -228,14 +320,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchLyrics(artist: String, title: String) {
         tvLyrics.text = "Đang kiểm tra kho lời bài hát..."
-
-        // KIỂM TRA TRƯỜNG 'lyric' TRONG FIREBASE (Khớp với image_74310e.png)
         db.collection("songs").document(songId).get().addOnSuccessListener { document ->
             val fbLyrics = document.getString("lyric")
             if (!fbLyrics.isNullOrEmpty()) {
                 tvLyrics.text = fbLyrics.replace("\\n", "\n")
             } else {
-                // NẾU FIREBASE KHÔNG CÓ -> GỌI API QUỐC TẾ
                 Thread {
                     try {
                         val cleanArtist = removeAccent(artist.split("ft.")[0].split("x")[0].trim())
@@ -245,13 +334,12 @@ class MainActivity : AppCompatActivity() {
                         val url = java.net.URL("https://api.lyrics.ovh/v1/$safeArtist/$safeTitle")
                         val connection = url.openConnection() as java.net.HttpURLConnection
                         connection.requestMethod = "GET"
-                        connection.connectTimeout = 8000
                         if (connection.responseCode == 200) {
                             val response = connection.inputStream.bufferedReader().readText()
                             val lyrics = org.json.JSONObject(response).optString("lyrics", "")
                             runOnUiThread { tvLyrics.text = if (lyrics.isNotEmpty()) lyrics else "Chưa có lời cho bài hát này." }
                         } else {
-                            runOnUiThread { tvLyrics.text = "Không tìm thấy lời bài hát.\nHãy kiểm tra lại tên trường 'lyric' trên Firebase!" }
+                            runOnUiThread { tvLyrics.text = "Không tìm thấy lời bài hát." }
                         }
                     } catch (e: Exception) {
                         runOnUiThread { tvLyrics.text = "Lỗi kết nối mạng." }
@@ -270,10 +358,82 @@ class MainActivity : AppCompatActivity() {
             btnLyrics.alpha = if (isLyricsVisible) 1.0f else 0.4f
             cardCoverArt.visibility = if (isLyricsVisible) View.GONE else View.VISIBLE
             scrollLyrics.visibility = if (isLyricsVisible) View.VISIBLE else View.GONE
-            if (isLyricsVisible) fetchLyrics(tvArtistName.text.toString(), tvSongTitle.text.toString())
+            if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
         }
+        btnDownload.setOnClickListener { downloadSong() }
         findViewById<ImageView>(R.id.btnPrev).setOnClickListener { if (controller?.hasPreviousMediaItem() == true) controller?.seekToPreviousMediaItem() }
         findViewById<ImageView>(R.id.btnNext).setOnClickListener { if (controller?.hasNextMediaItem() == true) controller?.seekToNextMediaItem() }
+    }
+
+    private fun downloadSong() {
+        if (audioUrl.isEmpty() || isLocalMode || audioUrl.startsWith("/")) {
+            Toast.makeText(this, "Bài hát này đã có sẵn trên máy!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+            val existing = dbLocal.downloadedSongDao().getDownloadedSongById(songId)
+            if (existing != null) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "Bài hát này đã được tải về rồi!", Toast.LENGTH_SHORT).show() }
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "Đang bắt đầu tải xuống...", Toast.LENGTH_SHORT).show()
+                btnDownload.isEnabled = false
+                btnDownload.alpha = 0.5f
+            }
+
+            try {
+                val fileName = "${songId}.mp3"
+                val request = DownloadManager.Request(Uri.parse(audioUrl))
+                    .setTitle(currentSongTitle)
+                    .setDestinationInExternalFilesDir(this@MainActivity, Environment.DIRECTORY_MUSIC, fileName)
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+                val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                downloadManager.enqueue(request)
+
+                val localPath = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), fileName).absolutePath
+                val downloadedSong = DownloadedSong(
+                    id = songId, title = currentSongTitle, artist = currentArtist,
+                    audioUrl = audioUrl, localPath = localPath, coverUrl = coverArtUrl, duration = currentDuration
+                )
+                dbLocal.downloadedSongDao().insert(downloadedSong)
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Đã thêm vào danh sách tải xuống!", Toast.LENGTH_SHORT).show()
+                    checkDownloadStatus()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Lỗi khi tải xuống: ${e.message}", Toast.LENGTH_SHORT).show()
+                    btnDownload.isEnabled = true
+                    btnDownload.alpha = 0.4f
+                }
+            }
+        }
+    }
+
+    private fun checkDownloadStatus() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+            val existing = dbLocal.downloadedSongDao().getDownloadedSongById(songId)
+            withContext(Dispatchers.Main) {
+                if (existing != null || isLocalMode) {
+                    btnDownload.setImageResource(android.R.drawable.stat_sys_download_done)
+                    btnDownload.setColorFilter(Color.parseColor("#BB86FC"))
+                    btnDownload.alpha = 1.0f
+                    btnDownload.isEnabled = false
+                } else {
+                    btnDownload.setImageResource(android.R.drawable.stat_sys_download)
+                    btnDownload.clearColorFilter()
+                    btnDownload.alpha = 0.4f
+                    btnDownload.isEnabled = true
+                }
+            }
+        }
     }
 
     private fun setupSeekBar() {
@@ -328,7 +488,7 @@ class MusicPlayerAdapter(private val songs: List<LocalSong>, private val onClick
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
         holder.tvTitle.text = s.title; holder.tvArtist.text = s.artist
-        Glide.with(holder.itemView.context).load(s.coverUrl).into(holder.imgThumb)
+        Glide.with(holder.itemView.context).load(s.coverUrl).placeholder(R.drawable.bg_glow_circle).into(holder.imgThumb)
         holder.tvTitle.setTextColor(if (position == currentPlayingPos) Color.parseColor("#BB86FC") else Color.WHITE)
         holder.itemView.setOnClickListener { onClick(position) }
     }
