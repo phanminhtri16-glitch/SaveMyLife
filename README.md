@@ -16,4 +16,4 @@ ví dụ: git pull backup main
 // lệnh push:
 git push <tên_remote> <tên_nhánh>
 ví dụ: git push origin main
-       git push backup main
+       
