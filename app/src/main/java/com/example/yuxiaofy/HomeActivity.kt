@@ -21,6 +21,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
 import database.DownloadedSong
@@ -65,6 +66,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var btnNavFavorites: LinearLayout
     private lateinit var btnNavProfile: LinearLayout
     private lateinit var progressBar: ProgressBar
+    private lateinit var btnAdminDashboard: ImageView
+    
+    private var auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val favoriteSet = mutableSetOf<String>()
 
     private val allSongsFromDB = mutableListOf<SongHome>()
     private var currentCategory = "Chill"
@@ -104,10 +109,21 @@ class HomeActivity : AppCompatActivity() {
         btnNavFavorites = findViewById(R.id.btnNavFavorites)
         btnNavProfile = findViewById(R.id.btnNavProfile)
         progressBar = findViewById(R.id.homeProgressBar)
+        btnAdminDashboard = findViewById(R.id.btnAdminDashboard)
     }
 
     private fun loadSongsFromFirestore() {
         progressBar.visibility = View.VISIBLE
+        val uid = auth.currentUser?.uid
+        if (uid != null) {
+            db.collection("favorites").document(uid).collection("songs")
+                .addSnapshotListener { favSnapshot, _ ->
+                    favoriteSet.clear()
+                    favSnapshot?.documents?.forEach { favoriteSet.add(it.id) }
+                    updateSongsWithFavorites()
+                }
+        }
+        
         db.collection("songs").addSnapshotListener { snapshot, error ->
             progressBar.visibility = View.GONE
             if (error != null || snapshot == null) return@addSnapshotListener
@@ -124,8 +140,13 @@ class HomeActivity : AppCompatActivity() {
                     category = doc.getString("category") ?: ""
                 ))
             }
-            filterByCategory(currentCategory)
+            updateSongsWithFavorites()
         }
+    }
+
+    private fun updateSongsWithFavorites() {
+        allSongsFromDB.forEach { it.isFavorite = favoriteSet.contains(it.id) }
+        filterByCategory(currentCategory)
     }
 
     private fun filterByCategory(category: String) {
@@ -146,6 +167,17 @@ class HomeActivity : AppCompatActivity() {
         }
         val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
         tvUserName.text = prefs.getString("logged_name", "Music Lover") ?: "Music Lover"
+        
+        val isAdmin = prefs.getBoolean("is_admin", false)
+        if (isAdmin) {
+            btnAdminDashboard.visibility = View.VISIBLE
+            btnAdminDashboard.setOnClickListener {
+                startActivity(Intent(this, AdminActivity::class.java))
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+            }
+        } else {
+            btnAdminDashboard.visibility = View.GONE
+        }
     }
 
     private fun setupRecyclerView() {
@@ -330,9 +362,18 @@ class HomeSongAdapter(
 
         updateHeartIcon(holder.heart, s.isFavorite)
         holder.heart.setOnClickListener {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
             s.isFavorite = !s.isFavorite
             updateHeartIcon(holder.heart, s.isFavorite)
             holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
+            
+            val db = FirebaseFirestore.getInstance()
+            val ref = db.collection("favorites").document(uid).collection("songs").document(s.id)
+            if (s.isFavorite) {
+                ref.set(mapOf("addedAt" to System.currentTimeMillis()))
+            } else {
+                ref.delete()
+            }
         }
 
         holder.download.setOnClickListener { 

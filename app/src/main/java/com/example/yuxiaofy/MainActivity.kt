@@ -73,6 +73,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvLyrics: TextView
     private lateinit var cardCoverArt: CardView
     private var isLyricsVisible = false
+    
+    private lateinit var btnShuffle: ImageView
+    private lateinit var btnRepeat: ImageView
+    private var isShuffleEnabled = false
+    private var isRepeatEnabled = false
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController? get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
@@ -142,6 +147,8 @@ class MainActivity : AppCompatActivity() {
         scrollLyrics = findViewById(R.id.scrollLyrics)
         tvLyrics = findViewById(R.id.tvLyrics)
         cardCoverArt = findViewById(R.id.cardCoverArt)
+        btnShuffle = findViewById(R.id.btnShuffle)
+        btnRepeat = findViewById(R.id.btnRepeat)
     }
 
     private fun setupSongInfo() {
@@ -198,6 +205,16 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                override fun onRepeatModeChanged(repeatMode: Int) {
+                    isRepeatEnabled = repeatMode == Player.REPEAT_MODE_ALL
+                    btnRepeat.alpha = if (isRepeatEnabled) 1.0f else 0.4f
+                }
+
+                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                    isShuffleEnabled = shuffleModeEnabled
+                    btnShuffle.alpha = if (isShuffleEnabled) 1.0f else 0.4f
+                }
+
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     super.onMediaItemTransition(mediaItem, reason)
                     mediaItem?.let { item ->
@@ -225,6 +242,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             })
+            
+            isShuffleEnabled = controller?.shuffleModeEnabled == true
+            btnShuffle.alpha = if (isShuffleEnabled) 1.0f else 0.4f
+            isRepeatEnabled = controller?.repeatMode == Player.REPEAT_MODE_ALL
+            btnRepeat.alpha = if (isRepeatEnabled) 1.0f else 0.4f
+            
             loadPlaylistAndPlay()
         }, ContextCompat.getMainExecutor(this))
     }
@@ -363,6 +386,20 @@ class MainActivity : AppCompatActivity() {
         btnDownload.setOnClickListener { downloadSong() }
         findViewById<ImageView>(R.id.btnPrev).setOnClickListener { if (controller?.hasPreviousMediaItem() == true) controller?.seekToPreviousMediaItem() }
         findViewById<ImageView>(R.id.btnNext).setOnClickListener { if (controller?.hasNextMediaItem() == true) controller?.seekToNextMediaItem() }
+
+        btnShuffle.setOnClickListener {
+            controller?.let {
+                val newShuffleState = !it.shuffleModeEnabled
+                it.shuffleModeEnabled = newShuffleState
+            }
+        }
+
+        btnRepeat.setOnClickListener {
+            controller?.let {
+                val newRepeatMode = if (it.repeatMode == Player.REPEAT_MODE_ALL) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ALL
+                it.repeatMode = newRepeatMode
+            }
+        }
     }
 
     private fun downloadSong() {
