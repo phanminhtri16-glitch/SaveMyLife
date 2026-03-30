@@ -16,4 +16,7 @@ ví dụ: git pull backup main
 // lệnh push:
 git push <tên_remote> <tên_nhánh>
 ví dụ: git push origin main
+
+// lệnh loại bỏ mọi thứ và quay về head của remote bạn muốn:
+git reset --hard <tên_remote>/<tên_nhánh>
        
