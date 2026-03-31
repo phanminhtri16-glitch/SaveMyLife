@@ -14,12 +14,23 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.common.Player
+import com.google.firebase.auth.FirebaseAuth
+import database.AppDatabase
+import database.ListenHistory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import java.io.File
 
 @UnstableApi
 class MusicService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private lateinit var player: ExoPlayer
+    private var lastSavedSongId: String? = null
+    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     companion object {
         private var cache: SimpleCache? = null
@@ -71,6 +82,16 @@ class MusicService : MediaSessionService() {
             .setLoadControl(loadControl)
             .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .build()
+            
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) saveToListenHistory()
+            }
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                super.onMediaItemTransition(mediaItem, reason)
+                if (player.isPlaying) saveToListenHistory()
+            }
+        })
 
         mediaSession = MediaSession.Builder(this, player).build()
     }
@@ -78,11 +99,48 @@ class MusicService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()
             mediaSession = null
         }
         super.onDestroy()
+    }
+
+    private fun saveToListenHistory() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val currentItem = player.currentMediaItem ?: return
+        val songId = currentItem.mediaId
+        
+        if (songId == lastSavedSongId || songId.isEmpty()) return
+        
+        val meta = currentItem.mediaMetadata
+        val title = meta.title?.toString() ?: "Unknown"
+        val artist = meta.artist?.toString() ?: "Unknown"
+        val coverUrl = meta.artworkUri?.toString() ?: ""
+        val audioUrl = currentItem.localConfiguration?.uri?.toString() ?: ""
+
+        if (title == "Unknown") return
+
+        lastSavedSongId = songId
+
+        serviceScope.launch {
+            try {
+                val dbLocal = AppDatabase.getDatabase(this@MusicService)
+                dbLocal.listenHistoryDao().addToHistory(
+                    ListenHistory(
+                        userId = uid,
+                        songId = songId,
+                        title = title,
+                        artist = artist,
+                        coverUrl = coverUrl,
+                        audioUrl = audioUrl
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("MusicService", "Error saving history: ${e.message}")
+            }
+        }
     }
 }

@@ -13,6 +13,8 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.os.Handler
+import android.os.Looper
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -78,10 +80,27 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var btnNavFavorites: LinearLayout
     private lateinit var btnNavProfile: LinearLayout
     private lateinit var progressBar: ProgressBar
+    private lateinit var btnMiniPrev: ImageView
+    private lateinit var btnMiniNext: ImageView
+    private lateinit var miniProgressBar: ProgressBar
+    private lateinit var btnAdmin: ImageView
 
     private val allSongsFromDB = mutableListOf<SongHome>()
     private var currentCategory = "Chill"
     private var allSongs = mutableListOf<SongHome>()
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val progressRunnable = object : Runnable {
+        override fun run() {
+            controller?.let { c ->
+                if (c.isPlaying) {
+                    miniProgressBar.max = c.duration.toInt().coerceAtLeast(0)
+                    miniProgressBar.progress = c.currentPosition.toInt()
+                    handler.postDelayed(this, 1000)
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +109,7 @@ class HomeActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
         bindViews()
         setupUserGreeting()
+        setupAdminButton()
         setupRecyclerView()
         setupCategoryChips()
         setupSearch()
@@ -120,6 +140,24 @@ class HomeActivity : AppCompatActivity() {
         btnNavProfile = findViewById(R.id.btnNavProfile)
         progressBar = findViewById(R.id.homeProgressBar)
         imgMiniCover = findViewById(R.id.imgMiniCover)
+        btnMiniPrev = findViewById(R.id.btnMiniPrev)
+        btnMiniNext = findViewById(R.id.btnMiniNext)
+        miniProgressBar = findViewById(R.id.miniProgressBar)
+        btnAdmin = findViewById(R.id.btnAdmin)
+    }
+
+    private fun setupAdminButton() {
+        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
+        val isAdmin = prefs.getBoolean("is_admin", false)
+        if (isAdmin) {
+            btnAdmin.visibility = View.VISIBLE
+            btnAdmin.setOnClickListener {
+                startActivity(Intent(this, AdminActivity::class.java))
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+            }
+        } else {
+            btnAdmin.visibility = View.GONE
+        }
     }
 
     private fun loadSongsFromFirestore() {
@@ -130,16 +168,18 @@ class HomeActivity : AppCompatActivity() {
             if (error != null || snapshot == null) return@addSnapshotListener
             allSongsFromDB.clear()
             snapshot.documents.forEach { doc ->
-                allSongsFromDB.add(SongHome(
-                    id = doc.id,
-                    title = doc.getString("title") ?: "",
-                    artist = doc.getString("artist") ?: "",
-                    imageRes = R.drawable.ic_launcher_background,
-                    duration = doc.getString("duration") ?: "3:00",
-                    audioUrl = doc.getString("audioUrl") ?: "",
-                    coverUrl = doc.getString("coverUrl") ?: "",
-                    category = doc.getString("category") ?: ""
-                ))
+                allSongsFromDB.add(
+                    SongHome(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "",
+                        artist = doc.getString("artist") ?: "",
+                        imageRes = R.drawable.ic_launcher_background,
+                        duration = doc.getString("duration") ?: "3:00",
+                        audioUrl = doc.getString("audioUrl") ?: "",
+                        coverUrl = doc.getString("coverUrl") ?: "",
+                        category = doc.getString("category") ?: ""
+                    )
+                )
             }
             setupFeaturedBanner()
             if (uid != null) {
@@ -158,14 +198,48 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupFeaturedBanner() {
         if (allSongsFromDB.isEmpty()) return
-        val song = allSongsFromDB.random()
+
+        val uid = auth.currentUser?.uid ?: return fallbackFeaturedBanner()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = database.AppDatabase.getDatabase(this@HomeActivity)
+            val history = dbLocal.listenHistoryDao().getHistoryByUser(uid)
+            val recent10 = history.take(10)
+
+            // Map history songs to their category by searching in allSongsFromDB
+            val categories = recent10.mapNotNull { h ->
+                allSongsFromDB.find { it.id == h.songId }?.category
+            }
+
+            val mostFrequentCategory = categories.groupBy { it }.maxByOrNull { it.value.size }?.key
+
+            val recommendedSong = if (mostFrequentCategory != null) {
+                val songsInCategory = allSongsFromDB.filter { it.category == mostFrequentCategory }
+                if (songsInCategory.isNotEmpty()) songsInCategory.random() else allSongsFromDB.random()
+            } else {
+                allSongsFromDB.random()
+            }
+
+            withContext(Dispatchers.Main) {
+                displayBannerSong(recommendedSong)
+            }
+        }
+    }
+
+    private fun fallbackFeaturedBanner() {
+        if (allSongsFromDB.isEmpty()) return
+        displayBannerSong(allSongsFromDB.random())
+    }
+
+    private fun displayBannerSong(song: SongHome) {
         val tvFeaturedTitle = findViewById<TextView>(R.id.tvFeaturedTitle)
         val imgFeaturedBanner = findViewById<ImageView>(R.id.imgFeaturedBanner)
         val featuredCard = findViewById<androidx.cardview.widget.CardView>(R.id.featuredCard)
 
         tvFeaturedTitle.text = "${song.title} · ${song.artist}"
         if (song.coverUrl.isNotEmpty()) {
-            Glide.with(this).load(song.coverUrl).centerCrop().placeholder(R.drawable.ic_launcher_background).into(imgFeaturedBanner)
+            Glide.with(this).load(song.coverUrl).centerCrop()
+                .placeholder(R.drawable.ic_launcher_background).into(imgFeaturedBanner)
         }
         featuredCard.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java).apply {
@@ -183,10 +257,14 @@ class HomeActivity : AppCompatActivity() {
     private fun filterByCategory(category: String) {
         currentCategory = category
         allSongs = if (category == "Tất cả") allSongsFromDB.toMutableList()
-        else allSongsFromDB.filter { it.category.equals(category, ignoreCase = true) }.toMutableList()
+        else allSongsFromDB.filter { it.category.equals(category, ignoreCase = true) }
+            .toMutableList()
         val query = etSearch.text.toString().lowercase(Locale.getDefault())
-        songAdapter.updateData(if (query.isEmpty()) allSongs
-        else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) })
+        songAdapter.updateData(
+            if (query.isEmpty()) allSongs
+            else allSongs.filter {
+                it.title.lowercase().contains(query) || it.artist.lowercase().contains(query)
+            })
     }
 
     private fun setupUserGreeting() {
@@ -203,7 +281,8 @@ class HomeActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         rvSongs.layoutManager = LinearLayoutManager(this)
         rvSongs.isNestedScrollingEnabled = false
-        songAdapter = HomeSongAdapter(mutableListOf(), 
+        songAdapter = HomeSongAdapter(
+            mutableListOf(),
             onItemClick = { song ->
                 startActivity(Intent(this, MainActivity::class.java).apply {
                     putExtra("SONG_ID", song.id)
@@ -220,7 +299,8 @@ class HomeActivity : AppCompatActivity() {
             },
             onFavoriteClick = { song, isFav ->
                 val uid = auth.currentUser?.uid ?: return@HomeSongAdapter
-                val ref = db.collection("favorites").document(uid).collection("songs").document(song.id)
+                val ref =
+                    db.collection("favorites").document(uid).collection("songs").document(song.id)
                 if (isFav) ref.set(mapOf("addedAt" to System.currentTimeMillis()))
                 else ref.delete()
             }
@@ -237,32 +317,66 @@ class HomeActivity : AppCompatActivity() {
             val dbLocal = AppDatabase.getDatabase(this@HomeActivity)
             val existing = dbLocal.downloadedSongDao().getDownloadedSongById(song.id)
             if (existing != null) {
-                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Đã tải về rồi!", Toast.LENGTH_SHORT).show() }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@HomeActivity,
+                        "Đã tải về rồi!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 return@launch
             }
 
-            withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Bắt đầu tải: ${song.title}", Toast.LENGTH_SHORT).show() }
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@HomeActivity,
+                    "Bắt đầu tải: ${song.title}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
 
             try {
                 val fileName = "${song.id}.mp3"
                 val request = DownloadManager.Request(Uri.parse(song.audioUrl))
                     .setTitle(song.title)
-                    .setDestinationInExternalFilesDir(this@HomeActivity, Environment.DIRECTORY_MUSIC, fileName)
+                    .setDestinationInExternalFilesDir(
+                        this@HomeActivity,
+                        Environment.DIRECTORY_MUSIC,
+                        fileName
+                    )
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
 
                 val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                 dm.enqueue(request)
 
-                val localPath = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), fileName).absolutePath
+                val localPath =
+                    File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), fileName).absolutePath
                 val downloadedSong = DownloadedSong(
-                    id = song.id, title = song.title, artist = song.artist,
-                    audioUrl = song.audioUrl, localPath = localPath, coverUrl = song.coverUrl, duration = song.duration
+                    id = song.id,
+                    title = song.title,
+                    artist = song.artist,
+                    audioUrl = song.audioUrl,
+                    localPath = localPath,
+                    coverUrl = song.coverUrl,
+                    duration = song.duration
                 )
                 dbLocal.downloadedSongDao().insert(downloadedSong)
 
-                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Đã thêm vào danh sách tải xuống!", Toast.LENGTH_SHORT).show() }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@HomeActivity,
+                        "Đã thêm vào danh sách tải xuống!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { Toast.makeText(this@HomeActivity, "Lỗi tải: ${e.message}", Toast.LENGTH_SHORT).show() }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@HomeActivity,
+                        "Lỗi tải: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }
@@ -297,9 +411,14 @@ class HomeActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = s.toString().lowercase(Locale.getDefault())
-                songAdapter.updateData(if (query.isEmpty()) allSongs
-                else allSongs.filter { it.title.lowercase().contains(query) || it.artist.lowercase().contains(query) })
+                songAdapter.updateData(
+                    if (query.isEmpty()) allSongs
+                    else allSongs.filter {
+                        it.title.lowercase().contains(query) || it.artist.lowercase()
+                            .contains(query)
+                    })
             }
+
             override fun afterTextChanged(s: Editable?) {}
         })
     }
@@ -328,6 +447,12 @@ class HomeActivity : AppCompatActivity() {
         btnMiniPlay.setOnClickListener {
             controller?.let { c -> if (c.isPlaying) c.pause() else c.play() }
         }
+        btnMiniPrev.setOnClickListener {
+            controller?.let { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() }
+        }
+        btnMiniNext.setOnClickListener {
+            controller?.let { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
+        }
         updateMiniPlayerUI()
     }
 
@@ -338,10 +463,16 @@ class HomeActivity : AppCompatActivity() {
             controller?.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     btnMiniPlay.setImageResource(
-                        if (isPlaying) android.R.drawable.ic_media_pause
-                        else android.R.drawable.ic_media_play
+                        if (isPlaying) R.drawable.playbutton
+                        else R.drawable.pausebutton
                     )
+                    if (isPlaying) {
+                        handler.post(progressRunnable)
+                    } else {
+                        handler.removeCallbacks(progressRunnable)
+                    }
                 }
+
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     updateMiniPlayerUI()
                 }
@@ -371,6 +502,11 @@ class HomeActivity : AppCompatActivity() {
                 if (c.isPlaying) android.R.drawable.ic_media_pause
                 else android.R.drawable.ic_media_play
             )
+            miniProgressBar.max = c.duration.toInt().coerceAtLeast(0)
+            miniProgressBar.progress = c.currentPosition.toInt()
+            if (c.isPlaying && miniPlayer.visibility == View.VISIBLE) {
+                handler.post(progressRunnable)
+            }
         } else {
             // Fallback về SharedPreferences nếu chưa có controller
             val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
@@ -388,6 +524,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        handler.removeCallbacks(progressRunnable)
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
@@ -413,7 +550,12 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun animateEntrance() {
-        findViewById<View>(R.id.headerSection).startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in_up))
+        findViewById<View>(R.id.headerSection).startAnimation(
+            AnimationUtils.loadAnimation(
+                this,
+                R.anim.fade_in_up
+            )
+        )
     }
 }
 
@@ -454,11 +596,16 @@ class HomeSongAdapter(
         holder.heart.setOnClickListener {
             s.isFavorite = !s.isFavorite
             updateHeartIcon(holder.heart, s.isFavorite)
-            holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
+            holder.heart.startAnimation(
+                AnimationUtils.loadAnimation(
+                    holder.itemView.context,
+                    R.anim.heart_bounce
+                )
+            )
             onFavoriteClick?.invoke(s, s.isFavorite)
         }
 
-        holder.download.setOnClickListener { 
+        holder.download.setOnClickListener {
             onDownloadClick(s)
             holder.download.animate().scaleX(1.2f).scaleY(1.2f).setDuration(200).withEndAction {
                 holder.download.animate().scaleX(1.0f).scaleY(1.0f).start()
@@ -469,10 +616,19 @@ class HomeSongAdapter(
     }
 
     private fun updateHeartIcon(iv: ImageView, isFav: Boolean) {
-        if (isFav) { iv.setImageResource(android.R.drawable.btn_star_big_on); iv.setColorFilter(Color.parseColor("#FF4081")) }
-        else { iv.setImageResource(android.R.drawable.btn_star_big_off); iv.clearColorFilter() }
+        if (isFav) {
+            iv.setImageResource(android.R.drawable.btn_star_big_on); iv.setColorFilter(
+                Color.parseColor(
+                    "#FF4081"
+                )
+            )
+        } else {
+            iv.setImageResource(android.R.drawable.btn_star_big_off); iv.clearColorFilter()
+        }
     }
 
     override fun getItemCount() = songs.size
-    fun updateData(newSongs: List<SongHome>) { songs = newSongs.toMutableList(); notifyDataSetChanged() }
+    fun updateData(newSongs: List<SongHome>) {
+        songs = newSongs.toMutableList(); notifyDataSetChanged()
+    }
 }

@@ -70,6 +70,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var btnLyrics: ImageView
     private lateinit var btnDownload: ImageView
+    private lateinit var btnShuffle: ImageView
+    private lateinit var btnRepeat: ImageView
     private lateinit var scrollLyrics: ScrollView
     private lateinit var tvLyrics: TextView
     private lateinit var cardCoverArt: CardView
@@ -140,6 +142,8 @@ class MainActivity : AppCompatActivity() {
         rvPlaylist = findViewById(R.id.rvPlaylist)
         btnLyrics = findViewById(R.id.btnLyrics)
         btnDownload = findViewById(R.id.btnDownload)
+        btnShuffle = findViewById(R.id.btnShuffle)
+        btnRepeat = findViewById(R.id.btnRepeat)
         scrollLyrics = findViewById(R.id.scrollLyrics)
         tvLyrics = findViewById(R.id.tvLyrics)
         cardCoverArt = findViewById(R.id.cardCoverArt)
@@ -184,7 +188,6 @@ class MainActivity : AppCompatActivity() {
                         playBtn.setImageResource(android.R.drawable.ic_media_pause)
                         if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
                         handler.post(progressRunnable)
-                        saveToListenHistory()
                     } else {
                         playBtn.setImageResource(android.R.drawable.ic_media_play)
                         rotateAnimator.pause()
@@ -223,7 +226,10 @@ class MainActivity : AppCompatActivity() {
                         if (::musicAdapter.isInitialized) musicAdapter.updateCurrentPos(currentIndex)
                         checkFavoriteStatus()
                         checkDownloadStatus()
-                        saveToListenHistory()
+                        controller?.let { c -> 
+                            updateShuffleUI(c.shuffleModeEnabled)
+                            updateRepeatUI(c.repeatMode != Player.REPEAT_MODE_OFF)
+                        }
                         if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
                     }
                 }
@@ -233,77 +239,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPlaylistAndPlay() {
-        // Nếu controller đang có media items rồi (quay lại từ Home) thì chỉ sync UI, không load lại
-        val c = controller
-        if (c != null && c.mediaItemCount > 0) {
-            val currentItem = c.currentMediaItem
-            if (currentItem != null) {
-                songId = currentItem.mediaId
-                val meta = currentItem.mediaMetadata
-                currentSongTitle = meta.title?.toString() ?: currentSongTitle
-                currentArtist = meta.artist?.toString() ?: currentArtist
-                tvSongTitle.text = currentSongTitle
-                tvArtistName.text = currentArtist
-                val artUri = meta.artworkUri
-                if (artUri != null) Glide.with(this).load(artUri).placeholder(R.drawable.bg_glow_circle).into(coverArt)
-                seekBar.max = c.duration.toInt().coerceAtLeast(0)
-                val totalSecs = (c.duration / 1000).coerceAtLeast(0)
-                tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
-                playBtn.setImageResource(if (c.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
-                if (c.isPlaying) { if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start(); handler.post(progressRunnable) }
-                checkFavoriteStatus()
-                checkDownloadStatus()
-            }
-            return
+        val c = controller ?: return
+        val currentPlayingId = c.currentMediaItem?.mediaId
+        val justSync = c.mediaItemCount > 0 && currentPlayingId == songId
+
+        if (justSync) {
+            syncUIWithController(c)
+        } else {
+            tvSongTitle.text = currentSongTitle
+            tvArtistName.text = currentArtist
+            if (coverArtUrl.isNotEmpty()) Glide.with(this).load(coverArtUrl).placeholder(R.drawable.bg_glow_circle).into(coverArt)
         }
 
+        fetchPlaylist(justSync)
+    }
+
+    private fun fetchPlaylist(justSync: Boolean) {
         if (isLocalMode) {
-            // Chế độ Offline: Sử dụng SQLite (Room) để lấy danh sách bài hát
             lifecycleScope.launch(Dispatchers.IO) {
-                val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+                val dbLocal = database.AppDatabase.getDatabase(this@MainActivity)
                 val downloadedList = dbLocal.downloadedSongDao().getAllDownloadedSongs()
                 withContext(Dispatchers.Main) {
-                    playlistSongs.clear()
-                    val mediaItems = mutableListOf<MediaItem>()
-                    var startIndex = 0
-                    var actualIndex = 0
-                    
-                    downloadedList.forEach { s ->
-                        val file = File(s.localPath)
-                        if (file.exists()) {
-                            playlistSongs.add(LocalSong(s.id, s.title, s.artist, s.localPath, s.coverUrl, s.duration))
-                            if (s.id == songId) startIndex = actualIndex
-                            
-                            val metadata = MediaMetadata.Builder()
-                                .setTitle(s.title)
-                                .setArtist(s.artist)
-                                .setArtworkUri(Uri.parse(s.coverUrl))
-                                .build()
-                            
-                            mediaItems.add(MediaItem.Builder()
-                                .setMediaId(s.id)
-                                .setUri(Uri.fromFile(file))
-                                .setMediaMetadata(metadata)
-                                .build())
-                            actualIndex++
-                        }
-                    }
-                    
-                    if (mediaItems.isNotEmpty()) {
-                        updateAdapterAndPlay(mediaItems, startIndex)
-                    } else {
-                        Toast.makeText(this@MainActivity, "Không tìm thấy file nhạc trên thiết bị!", Toast.LENGTH_SHORT).show()
-                    }
+                    processFetchedSongs(downloadedList.map { LocalSong(it.id, it.title, it.artist, it.localPath, it.coverUrl, it.duration) }, justSync, true)
                 }
             }
         } else {
-            // Chế độ Online: Lấy từ Firebase
             db.collection("songs").get().addOnSuccessListener { snapshot ->
-                playlistSongs.clear()
-                val mediaItems = mutableListOf<MediaItem>()
-                var startIndex = 0
-                snapshot.documents.forEachIndexed { index, doc ->
-                    val s = LocalSong(
+                val fbSongs = snapshot.documents.map { doc ->
+                    LocalSong(
                         id = doc.id,
                         title = doc.getString("title") ?: "",
                         artist = doc.getString("artist") ?: "",
@@ -311,21 +274,38 @@ class MainActivity : AppCompatActivity() {
                         coverUrl = doc.getString("coverUrl") ?: "",
                         duration = doc.getString("duration") ?: "3:00"
                     )
-                    playlistSongs.add(s)
-                    if (s.id == songId) startIndex = index
-                    val metadata = MediaMetadata.Builder()
-                        .setTitle(s.title).setArtist(s.artist)
-                        .setArtworkUri(if (s.coverUrl.isNotEmpty()) Uri.parse(s.coverUrl) else null).build()
-                    mediaItems.add(MediaItem.Builder()
-                        .setMediaId(s.id).setUri(s.audioUrl)
-                        .setMediaMetadata(metadata).build())
                 }
-                updateAdapterAndPlay(mediaItems, startIndex)
+                processFetchedSongs(fbSongs, justSync, false)
             }
         }
     }
 
-    private fun updateAdapterAndPlay(items: List<MediaItem>, startIdx: Int) {
+    private fun processFetchedSongs(songs: List<LocalSong>, justSync: Boolean, isLocal: Boolean) {
+        playlistSongs.clear()
+        val mediaItems = mutableListOf<MediaItem>()
+        var startIndex = 0
+
+        songs.forEach { s ->
+            val isValid = if (isLocal) File(s.audioUrl).exists() else true
+            if (isValid) {
+                playlistSongs.add(s)
+                val actualIndex = mediaItems.size
+                if (s.id == songId) startIndex = actualIndex
+                
+                val uri = if (isLocal) Uri.fromFile(File(s.audioUrl)) else Uri.parse(s.audioUrl)
+                val metadata = MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setArtworkUri(if (s.coverUrl.isNotEmpty()) Uri.parse(s.coverUrl) else null).build()
+                mediaItems.add(MediaItem.Builder().setMediaId(s.id).setUri(uri).setMediaMetadata(metadata).build())
+            }
+        }
+        
+        if (mediaItems.isNotEmpty()) {
+            setupPlaylistAdapter(mediaItems, startIndex, justSync)
+        } else {
+            Toast.makeText(this@MainActivity, "Không tìm thấy bài hát nào!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupPlaylistAdapter(items: List<MediaItem>, startIdx: Int, justSync: Boolean) {
         musicAdapter = MusicPlayerAdapter(playlistSongs) { pos -> 
             controller?.seekToDefaultPosition(pos)
             controller?.play() 
@@ -334,10 +314,34 @@ class MainActivity : AppCompatActivity() {
         rvPlaylist.adapter = musicAdapter
         
         controller?.let { c ->
-            c.setMediaItems(items, startIdx, C.TIME_UNSET)
-            c.prepare()
-            c.play()
+            if (!justSync) {
+                c.setMediaItems(items, startIdx, C.TIME_UNSET)
+                c.prepare()
+                c.play()
+            }
+            musicAdapter.updateCurrentPos(c.currentMediaItemIndex)
         }
+    }
+
+    private fun syncUIWithController(c: MediaController) {
+        val currentItem = c.currentMediaItem ?: return
+        songId = currentItem.mediaId
+        val meta = currentItem.mediaMetadata
+        currentSongTitle = meta.title?.toString() ?: currentSongTitle
+        currentArtist = meta.artist?.toString() ?: currentArtist
+        tvSongTitle.text = currentSongTitle
+        tvArtistName.text = currentArtist
+        val artUri = meta.artworkUri
+        if (artUri != null) Glide.with(this).load(artUri).placeholder(R.drawable.bg_glow_circle).into(coverArt)
+        seekBar.max = c.duration.toInt().coerceAtLeast(0)
+        val totalSecs = (c.duration / 1000).coerceAtLeast(0)
+        tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
+        playBtn.setImageResource(if (c.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+        if (c.isPlaying) { if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start(); handler.post(progressRunnable) }
+        updateShuffleUI(c.shuffleModeEnabled)
+        updateRepeatUI(c.repeatMode != Player.REPEAT_MODE_OFF)
+        checkFavoriteStatus()
+        checkDownloadStatus()
     }
 
     private fun removeAccent(s: String): String {
@@ -388,8 +392,35 @@ class MainActivity : AppCompatActivity() {
             if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
         }
         btnDownload.setOnClickListener { downloadSong() }
+        btnShuffle.setOnClickListener { toggleShuffle() }
+        btnRepeat.setOnClickListener { toggleRepeat() }
         findViewById<ImageView>(R.id.btnPrev).setOnClickListener { if (controller?.hasPreviousMediaItem() == true) controller?.seekToPreviousMediaItem() }
         findViewById<ImageView>(R.id.btnNext).setOnClickListener { if (controller?.hasNextMediaItem() == true) controller?.seekToNextMediaItem() }
+    }
+
+    private fun toggleShuffle() {
+        val c = controller ?: return
+        val isShuffle = !c.shuffleModeEnabled
+        c.shuffleModeEnabled = isShuffle
+        updateShuffleUI(isShuffle)
+    }
+
+    private fun toggleRepeat() {
+        val c = controller ?: return
+        val currentMode = c.repeatMode
+        val newMode = if (currentMode == Player.REPEAT_MODE_OFF) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        c.repeatMode = newMode
+        updateRepeatUI(newMode == Player.REPEAT_MODE_ALL)
+    }
+
+    private fun updateShuffleUI(isEnabled: Boolean) {
+        btnShuffle.alpha = if (isEnabled) 1.0f else 0.4f
+        if (isEnabled) btnShuffle.setColorFilter(Color.parseColor("#BB86FC")) else btnShuffle.clearColorFilter()
+    }
+
+    private fun updateRepeatUI(isEnabled: Boolean) {
+        btnRepeat.alpha = if (isEnabled) 1.0f else 0.4f
+        if (isEnabled) btnRepeat.setColorFilter(Color.parseColor("#BB86FC")) else btnRepeat.clearColorFilter()
     }
 
     private fun downloadSong() {
@@ -469,24 +500,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(progressRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) { if (controller?.isPlaying == true) handler.post(progressRunnable) }
         })
-    }
-
-    private fun saveToListenHistory() {
-        val uid = auth.currentUser?.uid ?: return
-        if (songId.isEmpty() || currentSongTitle.isEmpty()) return
-        lifecycleScope.launch(Dispatchers.IO) {
-            val dbLocal = AppDatabase.getDatabase(this@MainActivity)
-            dbLocal.listenHistoryDao().addToHistory(
-                ListenHistory(
-                    userId = uid,
-                    songId = songId,
-                    title = currentSongTitle,
-                    artist = currentArtist,
-                    coverUrl = coverArtUrl,
-                    audioUrl = audioUrl
-                )
-            )
-        }
     }
 
     private fun checkFavoriteStatus() {
