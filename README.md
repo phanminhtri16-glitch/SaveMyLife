@@ -20,3 +20,5 @@ ví dụ: git push origin main
 // lệnh loại bỏ mọi thứ và quay về head của remote bạn muốn:
 git reset --hard <tên_remote>/<tên_nhánh>
        
+// lệnh loại bỏ mọi thứ và quay về head của remote bạn muốn: 
+git reset --hard <tên_remote>/<tên_nhánh>
