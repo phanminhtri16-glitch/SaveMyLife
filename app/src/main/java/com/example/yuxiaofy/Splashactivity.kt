@@ -10,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuth
 class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_splash)
 
         Handler(Looper.getMainLooper()).postDelayed({
             val currentUser = FirebaseAuth.getInstance().currentUser
@@ -25,7 +26,8 @@ class SplashActivity : AppCompatActivity() {
                             .putString("logged_email", currentUser.email ?: "")
                             .putBoolean("is_admin", isAdmin)
                             .apply()
-                        val target = if (isAdmin) AdminActivity::class.java else HomeActivity::class.java
+                        val target =
+                            if (isAdmin) AdminActivity::class.java else HomeActivity::class.java
                         startActivity(Intent(this, target))
                         finish()
                     }
@@ -38,6 +40,6 @@ class SplashActivity : AppCompatActivity() {
                 startActivity(Intent(this, LoginActivity::class.java))
                 finish()
             }
-        }, 2000)
+        }, 1500)
     }
 }
