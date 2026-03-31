@@ -2,6 +2,7 @@ package com.example.yuxiaofy
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -18,9 +19,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
 import database.DownloadedSong
@@ -43,9 +50,15 @@ data class SongHome(
     val category: String = ""
 )
 
+@androidx.media3.common.util.UnstableApi
 class HomeActivity : AppCompatActivity() {
 
     private lateinit var db: FirebaseFirestore
+    private lateinit var auth: FirebaseAuth
+
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private val controller: MediaController? get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
+    private lateinit var imgMiniCover: ImageView
     private lateinit var rvSongs: RecyclerView
     private lateinit var songAdapter: HomeSongAdapter
     private lateinit var listTitle: TextView
@@ -74,6 +87,7 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
         db = FirebaseFirestore.getInstance()
+        auth = FirebaseAuth.getInstance()
         bindViews()
         setupUserGreeting()
         setupRecyclerView()
@@ -83,6 +97,7 @@ class HomeActivity : AppCompatActivity() {
         setupBottomNav()
         animateEntrance()
         loadSongsFromFirestore()
+        setupMediaController()
     }
 
     private fun bindViews() {
@@ -104,10 +119,12 @@ class HomeActivity : AppCompatActivity() {
         btnNavFavorites = findViewById(R.id.btnNavFavorites)
         btnNavProfile = findViewById(R.id.btnNavProfile)
         progressBar = findViewById(R.id.homeProgressBar)
+        imgMiniCover = findViewById(R.id.imgMiniCover)
     }
 
     private fun loadSongsFromFirestore() {
         progressBar.visibility = View.VISIBLE
+        val uid = auth.currentUser?.uid
         db.collection("songs").addSnapshotListener { snapshot, error ->
             progressBar.visibility = View.GONE
             if (error != null || snapshot == null) return@addSnapshotListener
@@ -124,7 +141,42 @@ class HomeActivity : AppCompatActivity() {
                     category = doc.getString("category") ?: ""
                 ))
             }
-            filterByCategory(currentCategory)
+            setupFeaturedBanner()
+            if (uid != null) {
+                db.collection("favorites").document(uid).collection("songs").get()
+                    .addOnSuccessListener { favSnap ->
+                        val favIds = favSnap.documents.map { it.id }.toSet()
+                        allSongsFromDB.forEach { it.isFavorite = it.id in favIds }
+                        filterByCategory(currentCategory)
+                    }
+                    .addOnFailureListener { filterByCategory(currentCategory) }
+            } else {
+                filterByCategory(currentCategory)
+            }
+        }
+    }
+
+    private fun setupFeaturedBanner() {
+        if (allSongsFromDB.isEmpty()) return
+        val song = allSongsFromDB.random()
+        val tvFeaturedTitle = findViewById<TextView>(R.id.tvFeaturedTitle)
+        val imgFeaturedBanner = findViewById<ImageView>(R.id.imgFeaturedBanner)
+        val featuredCard = findViewById<androidx.cardview.widget.CardView>(R.id.featuredCard)
+
+        tvFeaturedTitle.text = "${song.title} · ${song.artist}"
+        if (song.coverUrl.isNotEmpty()) {
+            Glide.with(this).load(song.coverUrl).centerCrop().placeholder(R.drawable.ic_launcher_background).into(imgFeaturedBanner)
+        }
+        featuredCard.setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                putExtra("SONG_ID", song.id)
+                putExtra("SONG_TITLE", song.title)
+                putExtra("SONG_ARTIST", song.artist)
+                putExtra("SONG_AUDIO_URL", song.audioUrl)
+                putExtra("SONG_COVER_URL", song.coverUrl)
+                putExtra("SONG_DURATION", song.duration)
+            })
+            overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }
     }
 
@@ -165,6 +217,12 @@ class HomeActivity : AppCompatActivity() {
             },
             onDownloadClick = { song ->
                 downloadSong(song)
+            },
+            onFavoriteClick = { song, isFav ->
+                val uid = auth.currentUser?.uid ?: return@HomeSongAdapter
+                val ref = db.collection("favorites").document(uid).collection("songs").document(song.id)
+                if (isFav) ref.set(mapOf("addedAt" to System.currentTimeMillis()))
+                else ref.delete()
             }
         )
         rvSongs.adapter = songAdapter
@@ -247,21 +305,90 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMiniPlayer() {
-        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
-        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
-        if (nowTitle.isNotEmpty()) {
-            tvMiniTitle.text = nowTitle
-            tvMiniArtist.text = nowArtist
-        } else {
-            tvMiniTitle.text = "Chưa phát bài nào"
-            tvMiniArtist.text = ""
-        }
         miniPlayer.setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+            val c = controller
+            if (c != null && c.currentMediaItem != null) {
+                val meta = c.mediaMetadata
+                val songId = c.currentMediaItem?.mediaId ?: ""
+                // Tìm audioUrl từ allSongsFromDB theo id
+                val song = allSongsFromDB.find { it.id == songId }
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    putExtra("SONG_ID", songId)
+                    putExtra("SONG_TITLE", meta.title?.toString() ?: "")
+                    putExtra("SONG_ARTIST", meta.artist?.toString() ?: "")
+                    putExtra("SONG_AUDIO_URL", song?.audioUrl ?: "")
+                    putExtra("SONG_COVER_URL", meta.artworkUri?.toString() ?: song?.coverUrl ?: "")
+                    putExtra("SONG_DURATION", song?.duration ?: "")
+                })
+            } else {
+                startActivity(Intent(this, MainActivity::class.java))
+            }
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }
-        btnMiniPlay.setOnClickListener { btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause) }
+        btnMiniPlay.setOnClickListener {
+            controller?.let { c -> if (c.isPlaying) c.pause() else c.play() }
+        }
+        updateMiniPlayerUI()
+    }
+
+    private fun setupMediaController() {
+        val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
+        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
+        controllerFuture?.addListener({
+            controller?.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    btnMiniPlay.setImageResource(
+                        if (isPlaying) android.R.drawable.ic_media_pause
+                        else android.R.drawable.ic_media_play
+                    )
+                }
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    updateMiniPlayerUI()
+                }
+            })
+            updateMiniPlayerUI()
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun updateMiniPlayerUI() {
+        val c = controller
+        if (c != null && c.currentMediaItem != null) {
+            val meta = c.mediaMetadata
+            val title = meta.title?.toString() ?: ""
+            val artist = meta.artist?.toString() ?: ""
+            val artworkUri = meta.artworkUri
+
+            if (title.isNotEmpty()) {
+                tvMiniTitle.text = title
+                tvMiniArtist.text = artist
+                miniPlayer.visibility = View.VISIBLE
+            }
+            if (artworkUri != null) {
+                Glide.with(this).load(artworkUri).placeholder(R.drawable.ic_launcher_background)
+                    .centerCrop().into(imgMiniCover)
+            }
+            btnMiniPlay.setImageResource(
+                if (c.isPlaying) android.R.drawable.ic_media_pause
+                else android.R.drawable.ic_media_play
+            )
+        } else {
+            // Fallback về SharedPreferences nếu chưa có controller
+            val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
+            val nowTitle = prefs.getString("now_playing_title", "") ?: ""
+            val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
+            if (nowTitle.isNotEmpty()) {
+                tvMiniTitle.text = nowTitle
+                tvMiniArtist.text = nowArtist
+                miniPlayer.visibility = View.VISIBLE
+            } else {
+                miniPlayer.visibility = View.GONE
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
     private fun setupBottomNav() {
@@ -282,13 +409,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
-        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
-        if (nowTitle.isNotEmpty()) {
-            tvMiniTitle.text = nowTitle
-            tvMiniArtist.text = nowArtist
-        }
+        updateMiniPlayerUI()
     }
 
     private fun animateEntrance() {
@@ -299,7 +420,8 @@ class HomeActivity : AppCompatActivity() {
 class HomeSongAdapter(
     private var songs: MutableList<SongHome>,
     private val onItemClick: (SongHome) -> Unit,
-    private val onDownloadClick: (SongHome) -> Unit
+    private val onDownloadClick: (SongHome) -> Unit,
+    private val onFavoriteClick: ((SongHome, Boolean) -> Unit)? = null
 ) : RecyclerView.Adapter<HomeSongAdapter.VH>() {
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -333,6 +455,7 @@ class HomeSongAdapter(
             s.isFavorite = !s.isFavorite
             updateHeartIcon(holder.heart, s.isFavorite)
             holder.heart.startAnimation(AnimationUtils.loadAnimation(holder.itemView.context, R.anim.heart_bounce))
+            onFavoriteClick?.invoke(s, s.isFavorite)
         }
 
         holder.download.setOnClickListener { 

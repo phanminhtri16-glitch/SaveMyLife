@@ -36,6 +36,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
 import database.DownloadedSong
+import database.ListenHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -183,6 +184,7 @@ class MainActivity : AppCompatActivity() {
                         playBtn.setImageResource(android.R.drawable.ic_media_pause)
                         if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start()
                         handler.post(progressRunnable)
+                        saveToListenHistory()
                     } else {
                         playBtn.setImageResource(android.R.drawable.ic_media_play)
                         rotateAnimator.pause()
@@ -221,6 +223,7 @@ class MainActivity : AppCompatActivity() {
                         if (::musicAdapter.isInitialized) musicAdapter.updateCurrentPos(currentIndex)
                         checkFavoriteStatus()
                         checkDownloadStatus()
+                        saveToListenHistory()
                         if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
                     }
                 }
@@ -230,6 +233,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPlaylistAndPlay() {
+        // Nếu controller đang có media items rồi (quay lại từ Home) thì chỉ sync UI, không load lại
+        val c = controller
+        if (c != null && c.mediaItemCount > 0) {
+            val currentItem = c.currentMediaItem
+            if (currentItem != null) {
+                songId = currentItem.mediaId
+                val meta = currentItem.mediaMetadata
+                currentSongTitle = meta.title?.toString() ?: currentSongTitle
+                currentArtist = meta.artist?.toString() ?: currentArtist
+                tvSongTitle.text = currentSongTitle
+                tvArtistName.text = currentArtist
+                val artUri = meta.artworkUri
+                if (artUri != null) Glide.with(this).load(artUri).placeholder(R.drawable.bg_glow_circle).into(coverArt)
+                seekBar.max = c.duration.toInt().coerceAtLeast(0)
+                val totalSecs = (c.duration / 1000).coerceAtLeast(0)
+                tvTotalTime.text = String.format(Locale.getDefault(), "%d:%02d", totalSecs / 60, totalSecs % 60)
+                playBtn.setImageResource(if (c.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+                if (c.isPlaying) { if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start(); handler.post(progressRunnable) }
+                checkFavoriteStatus()
+                checkDownloadStatus()
+            }
+            return
+        }
+
         if (isLocalMode) {
             // Chế độ Offline: Sử dụng SQLite (Room) để lấy danh sách bài hát
             lifecycleScope.launch(Dispatchers.IO) {
@@ -442,6 +469,24 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(progressRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) { if (controller?.isPlaying == true) handler.post(progressRunnable) }
         })
+    }
+
+    private fun saveToListenHistory() {
+        val uid = auth.currentUser?.uid ?: return
+        if (songId.isEmpty() || currentSongTitle.isEmpty()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+            dbLocal.listenHistoryDao().addToHistory(
+                ListenHistory(
+                    userId = uid,
+                    songId = songId,
+                    title = currentSongTitle,
+                    artist = currentArtist,
+                    coverUrl = coverArtUrl,
+                    audioUrl = audioUrl
+                )
+            )
+        }
     }
 
     private fun checkFavoriteStatus() {

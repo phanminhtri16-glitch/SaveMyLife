@@ -7,8 +7,13 @@ import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import database.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PrivacyActivity : AppCompatActivity() {
 
@@ -46,8 +51,14 @@ class PrivacyActivity : AppCompatActivity() {
                 .setTitle("Xóa lịch sử nghe")
                 .setMessage("Tất cả lịch sử nghe nhạc của bạn sẽ bị xóa. Không thể hoàn tác.")
                 .setPositiveButton("Xóa") { _, _ ->
-                    // TODO: clear listen history từ Firestore khi có collection đó
-                    Toast.makeText(this, "Đã xóa lịch sử nghe ✓", Toast.LENGTH_SHORT).show()
+                    val uid = auth.currentUser?.uid ?: return@setPositiveButton
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        AppDatabase.getDatabase(this@PrivacyActivity)
+                            .listenHistoryDao().clearHistoryByUser(uid)
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@PrivacyActivity, "Đã xóa lịch sử nghe ✓", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
                 .setNegativeButton("Hủy", null)
                 .show()

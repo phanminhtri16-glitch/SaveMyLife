@@ -76,6 +76,7 @@ class HistoryActivity : AppCompatActivity() {
                 putExtra("SONG_ARTIST", history.artist)
                 putExtra("SONG_AUDIO_URL", history.audioUrl)
                 putExtra("SONG_COVER_URL", history.coverUrl)
+                putExtra("SONG_DURATION", "3:00")
             })
             overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
         }

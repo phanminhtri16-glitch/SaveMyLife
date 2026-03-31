@@ -120,6 +120,12 @@ class FavoritesActivity : AppCompatActivity() {
             },
             onDownloadClick = { song ->
                 downloadSong(song)
+            },
+            onFavoriteClick = { song, isFav ->
+                val uid = auth.currentUser?.uid ?: return@HomeSongAdapter
+                val ref = db.collection("favorites").document(uid).collection("songs").document(song.id)
+                if (isFav) ref.set(mapOf("addedAt" to System.currentTimeMillis()))
+                else ref.delete()
             }
         )
         rvFavorites.adapter = adapter

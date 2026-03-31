@@ -148,20 +148,21 @@ class SearchActivity : AppCompatActivity() {
         searchAdapter = HomeSongAdapter(mutableListOf(),
             onItemClick = { song ->
                 saveSearchQuery(etSearch.text.toString())
-
-                val intent = Intent(this, MainActivity::class.java).apply {
+                startActivity(Intent(this, MainActivity::class.java).apply {
                     putExtra("SONG_ID", song.id)
                     putExtra("SONG_TITLE", song.title)
                     putExtra("SONG_ARTIST", song.artist)
                     putExtra("SONG_AUDIO_URL", song.audioUrl)
                     putExtra("SONG_COVER_URL", song.coverUrl)
                     putExtra("SONG_DURATION", song.duration)
-                }
-                startActivity(intent)
+                })
                 overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
             },
-            onDownloadClick = { song ->
-                downloadSong(song)
+            onDownloadClick = { song -> downloadSong(song) },
+            onFavoriteClick = { song, isFav ->
+                val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@HomeSongAdapter
+                val ref = db.collection("favorites").document(uid).collection("songs").document(song.id)
+                if (isFav) ref.set(mapOf("addedAt" to System.currentTimeMillis())) else ref.delete()
             }
         )
         rvResults.adapter = searchAdapter
