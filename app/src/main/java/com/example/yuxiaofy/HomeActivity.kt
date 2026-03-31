@@ -6,7 +6,10 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.content.ComponentName
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -18,9 +21,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.common.util.concurrent.ListenableFuture
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import database.AppDatabase
@@ -61,6 +69,27 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var tvMiniTitle: TextView
     private lateinit var tvMiniArtist: TextView
     private lateinit var btnMiniPlay: ImageView
+    private lateinit var btnMiniPrev: ImageView
+    private lateinit var btnMiniNext: ImageView
+    private lateinit var imgMiniArt: ImageView
+    private lateinit var miniProgressBar: ProgressBar
+
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private val controller: MediaController? get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
+    private val handler = Handler(Looper.getMainLooper())
+    private val progressRunnable = object : Runnable {
+        override fun run() {
+            controller?.let { c ->
+                if (c.isPlaying) {
+                    val duration = c.duration
+                    if (duration > 0) {
+                        miniProgressBar.progress = ((c.currentPosition * 100) / duration).toInt()
+                    }
+                    handler.postDelayed(this, 1000)
+                }
+            }
+        }
+    }
     private lateinit var btnNavHome: LinearLayout
     private lateinit var btnNavSearch: LinearLayout
     private lateinit var btnNavFavorites: LinearLayout
@@ -104,6 +133,10 @@ class HomeActivity : AppCompatActivity() {
         tvMiniTitle = findViewById(R.id.tvMiniTitle)
         tvMiniArtist = findViewById(R.id.tvMiniArtist)
         btnMiniPlay = findViewById(R.id.btnMiniPlay)
+        btnMiniPrev = findViewById(R.id.btnMiniPrev)
+        btnMiniNext = findViewById(R.id.btnMiniNext)
+        imgMiniArt = findViewById(R.id.imgMiniArt)
+        miniProgressBar = findViewById(R.id.miniProgressBar)
         btnNavHome = findViewById(R.id.btnNavHome)
         btnNavSearch = findViewById(R.id.btnNavSearch)
         btnNavFavorites = findViewById(R.id.btnNavFavorites)
@@ -279,21 +312,70 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMiniPlayer() {
-        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
-        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
-        if (nowTitle.isNotEmpty()) {
-            tvMiniTitle.text = nowTitle
-            tvMiniArtist.text = nowArtist
-        } else {
-            tvMiniTitle.text = "Chưa phát bài nào"
-            tvMiniArtist.text = ""
-        }
+        val sessionToken = SessionToken(this, ComponentName(this, MusicService::class.java))
+        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
+        controllerFuture?.addListener({
+            controller?.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) {
+                        btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause)
+                        handler.post(progressRunnable)
+                    } else {
+                        btnMiniPlay.setImageResource(android.R.drawable.ic_media_play)
+                        handler.removeCallbacks(progressRunnable)
+                    }
+                }
+
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    super.onMediaItemTransition(mediaItem, reason)
+                    updateMiniPlayerUI()
+                }
+            })
+            updateMiniPlayerUI()
+        }, ContextCompat.getMainExecutor(this))
+
+        btnMiniPlay.setOnClickListener { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
+        btnMiniPrev.setOnClickListener { if (controller?.hasPreviousMediaItem() == true) controller?.seekToPreviousMediaItem() }
+        btnMiniNext.setOnClickListener { if (controller?.hasNextMediaItem() == true) controller?.seekToNextMediaItem() }
+
         miniPlayer.setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
-            overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
+            val c = controller
+            if (c != null && c.mediaItemCount > 0) {
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    putExtra("SONG_ID", c.currentMediaItem?.mediaId)
+                    putExtra("SONG_TITLE", c.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown")
+                    putExtra("SONG_ARTIST", c.currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown")
+                    putExtra("SONG_COVER_URL", c.currentMediaItem?.mediaMetadata?.artworkUri?.toString() ?: "")
+                })
+                overridePendingTransition(R.anim.slide_up_fade, R.anim.fade_out)
+            }
         }
-        btnMiniPlay.setOnClickListener { btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause) }
+    }
+
+    private fun updateMiniPlayerUI() {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return
+        
+        val currentTitle = c.currentMediaItem?.mediaMetadata?.title?.toString()
+        val currentArtistName = c.currentMediaItem?.mediaMetadata?.artist?.toString()
+        val coverUrl = c.currentMediaItem?.mediaMetadata?.artworkUri?.toString()
+        
+        if (!currentTitle.isNullOrEmpty()) {
+            tvMiniTitle.text = currentTitle
+            tvMiniArtist.text = currentArtistName ?: ""
+            if (coverUrl != null && coverUrl.isNotEmpty()) {
+                Glide.with(this).load(coverUrl).placeholder(R.drawable.bg_circle_play).into(imgMiniArt)
+            }
+            if (c.isPlaying) {
+                btnMiniPlay.setImageResource(android.R.drawable.ic_media_pause)
+                handler.post(progressRunnable)
+            } else {
+                btnMiniPlay.setImageResource(android.R.drawable.ic_media_play)
+            }
+        }
+        
+        btnMiniPrev.visibility = if (c.hasPreviousMediaItem()) View.VISIBLE else View.INVISIBLE
+        btnMiniNext.visibility = if (c.hasNextMediaItem()) View.VISIBLE else View.INVISIBLE
     }
 
     private fun setupBottomNav() {
@@ -314,13 +396,16 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val prefs = getSharedPreferences("yuxiaofy_prefs", MODE_PRIVATE)
-        val nowTitle = prefs.getString("now_playing_title", "") ?: ""
-        val nowArtist = prefs.getString("now_playing_artist", "") ?: ""
-        if (nowTitle.isNotEmpty()) {
-            tvMiniTitle.text = nowTitle
-            tvMiniArtist.text = nowArtist
+        controller?.let {
+            updateMiniPlayerUI()
+            if (it.isPlaying) handler.post(progressRunnable)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacks(progressRunnable)
+        controllerFuture?.let { androidx.media3.session.MediaController.releaseFuture(it) }
     }
 
     private fun animateEntrance() {

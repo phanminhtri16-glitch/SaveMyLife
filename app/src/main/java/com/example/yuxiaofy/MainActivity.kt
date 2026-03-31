@@ -238,6 +238,24 @@ class MainActivity : AppCompatActivity() {
                         if (::musicAdapter.isInitialized) musicAdapter.updateCurrentPos(currentIndex)
                         checkFavoriteStatus()
                         checkDownloadStatus()
+
+                        val uid = auth.currentUser?.uid
+                        if (uid != null && !isLocalMode && songId.isNotEmpty()) {
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val dbLocal = AppDatabase.getDatabase(this@MainActivity)
+                                val historyItem = database.ListenHistory(
+                                    userId = uid,
+                                    songId = songId,
+                                    title = currentSongTitle,
+                                    artist = currentArtist,
+                                    coverUrl = coverArtUrl,
+                                    audioUrl = audioUrl,
+                                    listenedAt = System.currentTimeMillis()
+                                )
+                                dbLocal.listenHistoryDao().addToHistory(historyItem)
+                            }
+                        }
+
                         if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
                     }
                 }
