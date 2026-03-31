@@ -71,7 +71,7 @@ class ProfileActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 tvPlaysCount.text = history.size.toString()
                 val totalMins = history.size * 3.5
-                tvHoursCount.text = String.format("%.1fh", totalMins / 60)
+                tvHoursCount.text = String.format("%.1fm", totalMins / 60)
             }
         }
 
