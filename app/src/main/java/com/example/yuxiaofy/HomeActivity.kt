@@ -204,10 +204,10 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val dbLocal = database.AppDatabase.getDatabase(this@HomeActivity)
             val history = dbLocal.listenHistoryDao().getHistoryByUser(uid)
-            val recent10 = history.take(10)
+            val recent5 = history.take(5)
 
             // Map history songs to their category by searching in allSongsFromDB
-            val categories = recent10.mapNotNull { h ->
+            val categories = recent5.mapNotNull { h ->
                 allSongsFromDB.find { it.id == h.songId }?.category
             }
 
@@ -463,8 +463,8 @@ class HomeActivity : AppCompatActivity() {
             controller?.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     btnMiniPlay.setImageResource(
-                        if (isPlaying) R.drawable.playbutton
-                        else R.drawable.pausebutton
+                        if (isPlaying) R.drawable.pausebutton
+                        else R.drawable.playbutton
                     )
                     if (isPlaying) {
                         handler.post(progressRunnable)
@@ -499,8 +499,8 @@ class HomeActivity : AppCompatActivity() {
                     .centerCrop().into(imgMiniCover)
             }
             btnMiniPlay.setImageResource(
-                if (c.isPlaying) android.R.drawable.ic_media_pause
-                else android.R.drawable.ic_media_play
+                if (c.isPlaying) R.drawable.pausebutton
+                else R.drawable.playbutton
             )
             miniProgressBar.max = c.duration.toInt().coerceAtLeast(0)
             miniProgressBar.progress = c.currentPosition.toInt()
