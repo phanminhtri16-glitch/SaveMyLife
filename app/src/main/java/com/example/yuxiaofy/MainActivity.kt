@@ -92,6 +92,7 @@ class MainActivity : AppCompatActivity() {
                 val idx = ((position.toDouble() / duration.toDouble()) * lyricLines.size).toInt().coerceIn(0, lyricLines.size - 1)
                 if (idx != currentLyricIndex) {
                     currentLyricIndex = idx
+                    lyricAdapter.setHighlightedLine(idx)
                     rvLyricLines.smoothScrollToPosition(idx)
                 }
             }
@@ -292,6 +293,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             db.collection("songs").get().addOnSuccessListener { snapshot ->
+                android.util.Log.d("MainActivity", "Fetched ${snapshot.documents.size} songs from Firestore")
                 val fbSongs = snapshot.documents.map { doc ->
                     LocalSong(
                         id = doc.id,
@@ -303,6 +305,9 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
                 processFetchedSongs(fbSongs, justSync, false)
+            }.addOnFailureListener { e ->
+                android.util.Log.e("MainActivity", "Firestore fetch failed: ${e.message}")
+                Toast.makeText(this@MainActivity, "Lỗi tải danh sách nhạc: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -415,6 +420,7 @@ class MainActivity : AppCompatActivity() {
         lyricLines.clear()
         lyricLines.addAll(lines)
         currentLyricIndex = -1
+        lyricAdapter.setHighlightedLine(-1)
         lyricAdapter.notifyDataSetChanged()
     }
 
@@ -636,10 +642,17 @@ class LyricSyncAdapter(private val lines: List<String>) : RecyclerView.Adapter<L
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.tvLine.text = lines[position]
-        holder.tvLine.setTextColor(Color.WHITE)
-        holder.tvLine.alpha = 1.0f
-        holder.tvLine.scaleX = 1.0f
-        holder.tvLine.scaleY = 1.0f
+        if (position == highlightedIndex) {
+            holder.tvLine.setTextColor(Color.parseColor("#BB86FC"))
+            holder.tvLine.alpha = 1.0f
+            holder.tvLine.scaleX = 1.05f
+            holder.tvLine.scaleY = 1.05f
+        } else {
+            holder.tvLine.setTextColor(Color.WHITE)
+            holder.tvLine.alpha = 0.6f
+            holder.tvLine.scaleX = 1.0f
+            holder.tvLine.scaleY = 1.0f
+        }
     }
 
     override fun getItemCount() = lines.size

@@ -165,7 +165,12 @@ class HomeActivity : AppCompatActivity() {
         val uid = auth.currentUser?.uid
         db.collection("songs").addSnapshotListener { snapshot, error ->
             progressBar.visibility = View.GONE
-            if (error != null || snapshot == null) return@addSnapshotListener
+            if (error != null) {
+                android.util.Log.e("HomeActivity", "Firestore error: ${error.message}")
+                Toast.makeText(this, "Lỗi tải nhạc: ${error.message}", Toast.LENGTH_SHORT).show()
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
             allSongsFromDB.clear()
             snapshot.documents.forEach { doc ->
                 allSongsFromDB.add(
@@ -181,6 +186,7 @@ class HomeActivity : AppCompatActivity() {
                     )
                 )
             }
+            android.util.Log.d("HomeActivity", "Loaded ${allSongsFromDB.size} songs from Firestore")
             setupFeaturedBanner()
             if (uid != null) {
                 db.collection("favorites").document(uid).collection("songs").get()

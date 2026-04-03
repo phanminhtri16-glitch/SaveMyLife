@@ -9,7 +9,7 @@
 
     <!-- ADD THIS INSIDE your existing <resources> block in themes.xml -->
 
-    <style name="AdminDialog" parent="Theme.MaterialComponents.Dialog.Alert">
+    <style name="AdminDialog" parent="ThemeOverlay.Material3.Dialog.Alert">
         <item name="android:background">#1A1A2E</item>
         <item name="android:textColor">#FFFFFF</item>
         <item name="colorAccent">#BB86FC</item>

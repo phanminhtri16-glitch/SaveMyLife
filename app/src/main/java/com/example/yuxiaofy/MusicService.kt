@@ -46,6 +46,11 @@ class MusicService : MediaSessionService() {
             }
             return cache!!
         }
+
+        fun releaseCache() {
+            cache?.release()
+            cache = null
+        }
     }
 
     @OptIn(UnstableApi::class)
@@ -105,6 +110,7 @@ class MusicService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        releaseCache()
         super.onDestroy()
     }
 

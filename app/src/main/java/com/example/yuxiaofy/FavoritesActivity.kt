@@ -75,12 +75,13 @@ class FavoritesActivity : AppCompatActivity() {
                     return@addSnapshotListener
                 }
                 favoriteSongs.clear()
+                val tempList = mutableListOf<SongHome>()
                 var loadedCount = 0
                 songIds.forEach { songId ->
                     db.collection("songs").document(songId).get()
                         .addOnSuccessListener { doc ->
                             if (doc.exists()) {
-                                favoriteSongs.add(SongHome(
+                                tempList.add(SongHome(
                                     id = doc.id,
                                     title = doc.getString("title") ?: "",
                                     artist = doc.getString("artist") ?: "",
@@ -95,6 +96,8 @@ class FavoritesActivity : AppCompatActivity() {
                             loadedCount++
                             if (loadedCount == songIds.size) {
                                 progressBar.visibility = View.GONE
+                                favoriteSongs.clear()
+                                favoriteSongs.addAll(tempList)
                                 adapter.updateData(favoriteSongs)
                                 tvCount.text = "${favoriteSongs.size} bài hát yêu thích"
                                 layoutEmpty.visibility = if (favoriteSongs.isEmpty()) View.VISIBLE else View.GONE
