@@ -80,21 +80,25 @@
                     android:id="@+id/scrollLyrics"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/bg_input_glass"
-                    android:visibility="gone"
-                    android:padding="16dp"
-                    android:scrollbars="none">
+                    android:visibility="gone">
 
                     <TextView
                         android:id="@+id/tvLyrics"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:lineSpacingExtra="8dp"
-                        android:text="Đang tìm lời bài hát..."
-                        android:textColor="#FFFFFF"
-                        android:textSize="16sp" />
+                        android:visibility="gone" />
                 </ScrollView>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvLyricLines"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_input_glass"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingVertical="12dp"
+                    android:scrollbars="none"
+                    android:visibility="gone" />
             </FrameLayout>
 
             <LinearLayout

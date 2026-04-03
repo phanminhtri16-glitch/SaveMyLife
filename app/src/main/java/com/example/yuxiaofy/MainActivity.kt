@@ -74,8 +74,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRepeat: ImageView
     private lateinit var scrollLyrics: ScrollView
     private lateinit var tvLyrics: TextView
+    private lateinit var rvLyricLines: RecyclerView
     private lateinit var cardCoverArt: CardView
     private var isLyricsVisible = false
+
+    // Lyrics sync
+    private val lyricLines = mutableListOf<String>()
+    private lateinit var lyricAdapter: LyricSyncAdapter
+    private var currentLyricIndex = -1
+    private val lyricSyncRunnable = object : Runnable {
+        override fun run() {
+            val c = controller ?: return
+            if (!isLyricsVisible || lyricLines.isEmpty()) return
+            val duration = c.duration
+            val position = c.currentPosition
+            if (duration > 0) {
+                val idx = ((position.toDouble() / duration.toDouble()) * lyricLines.size).toInt().coerceIn(0, lyricLines.size - 1)
+                if (idx != currentLyricIndex) {
+                    currentLyricIndex = idx
+                    rvLyricLines.smoothScrollToPosition(idx)
+                }
+            }
+            handler.postDelayed(this, 500)
+        }
+    }
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController? get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
@@ -146,7 +168,12 @@ class MainActivity : AppCompatActivity() {
         btnRepeat = findViewById(R.id.btnRepeat)
         scrollLyrics = findViewById(R.id.scrollLyrics)
         tvLyrics = findViewById(R.id.tvLyrics)
+        rvLyricLines = findViewById(R.id.rvLyricLines)
         cardCoverArt = findViewById(R.id.cardCoverArt)
+
+        lyricAdapter = LyricSyncAdapter(lyricLines)
+        rvLyricLines.layoutManager = LinearLayoutManager(this)
+        rvLyricLines.adapter = lyricAdapter
     }
 
     private fun setupSongInfo() {
@@ -226,9 +253,9 @@ class MainActivity : AppCompatActivity() {
                         if (::musicAdapter.isInitialized) musicAdapter.updateCurrentPos(currentIndex)
                         checkFavoriteStatus()
                         checkDownloadStatus()
-                        controller?.let { c -> 
+                        controller?.let { c ->
                             updateShuffleUI(c.shuffleModeEnabled)
-                            updateRepeatUI(c.repeatMode != Player.REPEAT_MODE_OFF)
+                            updateRepeatUI(c.repeatMode)
                         }
                         if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
                     }
@@ -339,7 +366,7 @@ class MainActivity : AppCompatActivity() {
         playBtn.setImageResource(if (c.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
         if (c.isPlaying) { if (rotateAnimator.isPaused) rotateAnimator.resume() else rotateAnimator.start(); handler.post(progressRunnable) }
         updateShuffleUI(c.shuffleModeEnabled)
-        updateRepeatUI(c.repeatMode != Player.REPEAT_MODE_OFF)
+        updateRepeatUI(c.repeatMode)
         checkFavoriteStatus()
         checkDownloadStatus()
     }
@@ -350,11 +377,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchLyrics(artist: String, title: String) {
-        tvLyrics.text = "Đang kiểm tra kho lời bài hát..."
+        displayLyricLines(listOf("Đang kiểm tra kho lời bài hát..."))
         db.collection("songs").document(songId).get().addOnSuccessListener { document ->
             val fbLyrics = document.getString("lyric")
             if (!fbLyrics.isNullOrEmpty()) {
-                tvLyrics.text = fbLyrics.replace("\\n", "\n")
+                val lines = fbLyrics.replace("\\n", "\n").split("\n").filter { it.isNotBlank() }
+                displayLyricLines(lines)
             } else {
                 Thread {
                     try {
@@ -368,16 +396,26 @@ class MainActivity : AppCompatActivity() {
                         if (connection.responseCode == 200) {
                             val response = connection.inputStream.bufferedReader().readText()
                             val lyrics = org.json.JSONObject(response).optString("lyrics", "")
-                            runOnUiThread { tvLyrics.text = if (lyrics.isNotEmpty()) lyrics else "Chưa có lời cho bài hát này." }
+                            val lines = if (lyrics.isNotEmpty())
+                                lyrics.split("\n").filter { it.isNotBlank() }
+                            else listOf("Chưa có lời cho bài hát này.")
+                            runOnUiThread { displayLyricLines(lines) }
                         } else {
-                            runOnUiThread { tvLyrics.text = "Không tìm thấy lời bài hát." }
+                            runOnUiThread { displayLyricLines(listOf("Không tìm thấy lời bài hát.")) }
                         }
                     } catch (e: Exception) {
-                        runOnUiThread { tvLyrics.text = "Lỗi kết nối mạng." }
+                        runOnUiThread { displayLyricLines(listOf("Lỗi kết nối mạng.")) }
                     }
                 }.start()
             }
         }
+    }
+
+    private fun displayLyricLines(lines: List<String>) {
+        lyricLines.clear()
+        lyricLines.addAll(lines)
+        currentLyricIndex = -1
+        lyricAdapter.notifyDataSetChanged()
     }
 
     private fun setupControls() {
@@ -388,8 +426,13 @@ class MainActivity : AppCompatActivity() {
             isLyricsVisible = !isLyricsVisible
             btnLyrics.alpha = if (isLyricsVisible) 1.0f else 0.4f
             cardCoverArt.visibility = if (isLyricsVisible) View.GONE else View.VISIBLE
-            scrollLyrics.visibility = if (isLyricsVisible) View.VISIBLE else View.GONE
-            if (isLyricsVisible) fetchLyrics(currentArtist, currentSongTitle)
+            rvLyricLines.visibility = if (isLyricsVisible) View.VISIBLE else View.GONE
+            if (isLyricsVisible) {
+                fetchLyrics(currentArtist, currentSongTitle)
+                handler.post(lyricSyncRunnable)
+            } else {
+                handler.removeCallbacks(lyricSyncRunnable)
+            }
         }
         btnDownload.setOnClickListener { downloadSong() }
         btnShuffle.setOnClickListener { toggleShuffle() }
@@ -407,10 +450,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleRepeat() {
         val c = controller ?: return
-        val currentMode = c.repeatMode
-        val newMode = if (currentMode == Player.REPEAT_MODE_OFF) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        val newMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
         c.repeatMode = newMode
-        updateRepeatUI(newMode == Player.REPEAT_MODE_ALL)
+        updateRepeatUI(newMode)
     }
 
     private fun updateShuffleUI(isEnabled: Boolean) {
@@ -418,9 +464,24 @@ class MainActivity : AppCompatActivity() {
         if (isEnabled) btnShuffle.setColorFilter(Color.parseColor("#BB86FC")) else btnShuffle.clearColorFilter()
     }
 
-    private fun updateRepeatUI(isEnabled: Boolean) {
-        btnRepeat.alpha = if (isEnabled) 1.0f else 0.4f
-        if (isEnabled) btnRepeat.setColorFilter(Color.parseColor("#BB86FC")) else btnRepeat.clearColorFilter()
+    private fun updateRepeatUI(mode: Int) {
+        when (mode) {
+            Player.REPEAT_MODE_OFF -> {
+                btnRepeat.alpha = 0.4f
+                btnRepeat.clearColorFilter()
+                btnRepeat.setImageResource(android.R.drawable.ic_menu_rotate)
+            }
+            Player.REPEAT_MODE_ALL -> {
+                btnRepeat.alpha = 1.0f
+                btnRepeat.setColorFilter(Color.parseColor("#BB86FC"))
+                btnRepeat.setImageResource(android.R.drawable.ic_menu_rotate)
+            }
+            Player.REPEAT_MODE_ONE -> {
+                btnRepeat.alpha = 1.0f
+                btnRepeat.setColorFilter(Color.parseColor("#FFD700"))
+                btnRepeat.setImageResource(android.R.drawable.ic_menu_rotate)
+            }
+        }
     }
 
     private fun downloadSong() {
@@ -530,6 +591,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(progressRunnable)
+        handler.removeCallbacks(lyricSyncRunnable)
         controllerFuture?.let { androidx.media3.session.MediaController.releaseFuture(it) }
     }
 }
@@ -551,4 +613,34 @@ class MusicPlayerAdapter(private val songs: List<LocalSong>, private val onClick
         holder.itemView.setOnClickListener { onClick(position) }
     }
     override fun getItemCount() = songs.size
+}
+
+class LyricSyncAdapter(private val lines: List<String>) : RecyclerView.Adapter<LyricSyncAdapter.VH>() {
+    private var highlightedIndex = -1
+
+    fun setHighlightedLine(index: Int) {
+        val old = highlightedIndex
+        highlightedIndex = index
+        if (old >= 0) notifyItemChanged(old)
+        notifyItemChanged(index)
+    }
+
+    class VH(v: View) : RecyclerView.ViewHolder(v) {
+        val tvLine: TextView = v.findViewById(R.id.tvLyricLine)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, vt: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_lyric_line, parent, false)
+        return VH(v)
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        holder.tvLine.text = lines[position]
+        holder.tvLine.setTextColor(Color.WHITE)
+        holder.tvLine.alpha = 1.0f
+        holder.tvLine.scaleX = 1.0f
+        holder.tvLine.scaleY = 1.0f
+    }
+
+    override fun getItemCount() = lines.size
 }
