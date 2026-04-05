@@ -34,19 +34,24 @@ class ChangePasswordActivity : AppCompatActivity() {
                 val pass = s.toString()
                 val strength = getPasswordStrength(pass)
                 when (strength) {
-                    0 -> { tvStrength.text = ""; strengthBar.visibility = View.INVISIBLE }
+                    0 -> {
+                        tvStrength.text = ""; strengthBar.visibility = View.INVISIBLE
+                    }
+
                     1 -> {
                         tvStrength.text = "Yếu"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#FF4444"))
                         strengthBar.setBackgroundColor(android.graphics.Color.parseColor("#FF4444"))
                         strengthBar.visibility = View.VISIBLE
                     }
+
                     2 -> {
                         tvStrength.text = "Trung bình"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#FFA500"))
                         strengthBar.setBackgroundColor(android.graphics.Color.parseColor("#FFA500"))
                         strengthBar.visibility = View.VISIBLE
                     }
+
                     3 -> {
                         tvStrength.text = "Mạnh ✓"
                         tvStrength.setTextColor(android.graphics.Color.parseColor("#44DD88"))
@@ -55,6 +60,7 @@ class ChangePasswordActivity : AppCompatActivity() {
                     }
                 }
             }
+
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
 
@@ -72,6 +78,18 @@ class ChangePasswordActivity : AppCompatActivity() {
                 Toast.makeText(this, "Vui lòng điền đầy đủ", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
+            if (newPass == currentPass) {
+                val shake = AnimationUtils.loadAnimation(this, R.anim.shake)
+                etConfirmPass.startAnimation(shake)
+                Toast.makeText(
+                    this,
+                    "Mật khẩu mới không được trùng với mật khẩu hiện tại",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+
             if (newPass != confirmPass) {
                 val shake = AnimationUtils.loadAnimation(this, R.anim.shake)
                 etConfirmPass.startAnimation(shake)
@@ -103,7 +121,8 @@ class ChangePasswordActivity : AppCompatActivity() {
                         .addOnSuccessListener {
                             progressBar.visibility = View.GONE
                             btnSave.isEnabled = true
-                            Toast.makeText(this, "Đổi mật khẩu thành công ✓", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, "Đổi mật khẩu thành công ✓", Toast.LENGTH_SHORT)
+                                .show()
                             finish()
                             overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
                         }
@@ -129,7 +148,7 @@ class ChangePasswordActivity : AppCompatActivity() {
     private fun getPasswordStrength(pass: String): Int {
         if (pass.isEmpty()) return 0
         var score = 0
-        if (pass.length >= 6) score++
+        if (pass.length >= 1) score++
         if (pass.any { it.isUpperCase() } && pass.any { it.isLowerCase() }) score++
         if (pass.any { it.isDigit() } || pass.any { !it.isLetterOrDigit() }) score++
         return score
