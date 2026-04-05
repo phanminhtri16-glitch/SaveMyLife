@@ -242,7 +242,9 @@ class HomeActivity : AppCompatActivity() {
         val imgFeaturedBanner = findViewById<ImageView>(R.id.imgFeaturedBanner)
         val featuredCard = findViewById<androidx.cardview.widget.CardView>(R.id.featuredCard)
 
-        tvFeaturedTitle.text = "${song.title} · ${song.artist}"
+        val artistLines = song.artist.replace("\\n", "\n").split("\n").filter { it.isNotBlank() }
+        val formattedArtist = artistLines.joinToString("")
+        tvFeaturedTitle.text = "${song.title} · $formattedArtist"
         if (song.coverUrl.isNotEmpty()) {
             Glide.with(this).load(song.coverUrl).centerCrop()
                 .placeholder(R.drawable.ic_launcher_background).into(imgFeaturedBanner)
