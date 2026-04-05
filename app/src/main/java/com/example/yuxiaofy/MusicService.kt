@@ -115,6 +115,9 @@ class MusicService : MediaSessionService() {
     }
 
     private fun saveToListenHistory() {
+        val prefs = applicationContext.getSharedPreferences("yuxiaofy_prefs", android.content.Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("privacy_listen_history", true)) return
+
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val currentItem = player.currentMediaItem ?: return
         val songId = currentItem.mediaId

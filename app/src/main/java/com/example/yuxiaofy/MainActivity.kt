@@ -89,12 +89,7 @@ class MainActivity : AppCompatActivity() {
             val duration = c.duration
             val position = c.currentPosition
             if (duration > 0) {
-                val idx = ((position.toDouble() / duration.toDouble()) * lyricLines.size).toInt().coerceIn(0, lyricLines.size - 1)
-                if (idx != currentLyricIndex) {
-                    currentLyricIndex = idx
-                    lyricAdapter.setHighlightedLine(idx)
-                    rvLyricLines.smoothScrollToPosition(idx)
-                }
+                // Auto-highlight logic disabled
             }
             handler.postDelayed(this, 500)
         }
@@ -609,11 +604,13 @@ class MusicPlayerAdapter(private val songs: List<LocalSong>, private val onClick
         val tvTitle: TextView = v.findViewById(R.id.tvSongTitle)
         val tvArtist: TextView = v.findViewById(R.id.tvArtist)
         val imgThumb: ImageView = v.findViewById(R.id.imgThumb)
+        val tvDuration: TextView = v.findViewById(R.id.tvDuration)
     }
     override fun onCreateViewHolder(parent: ViewGroup, vt: Int) = VH(LayoutInflater.from(parent.context).inflate(R.layout.item_playlist_row, parent, false))
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
         holder.tvTitle.text = s.title; holder.tvArtist.text = s.artist
+        holder.tvDuration.text = s.duration
         Glide.with(holder.itemView.context).load(s.coverUrl).placeholder(R.drawable.bg_glow_circle).into(holder.imgThumb)
         holder.tvTitle.setTextColor(if (position == currentPlayingPos) Color.parseColor("#BB86FC") else Color.WHITE)
         holder.itemView.setOnClickListener { onClick(position) }

@@ -70,8 +70,8 @@ class ProfileActivity : AppCompatActivity() {
             val history = localDb.listenHistoryDao().getHistoryByUser(currentUser.uid)
             withContext(Dispatchers.Main) {
                 tvPlaysCount.text = history.size.toString()
-                val totalMins = history.size * 3.5
-                tvHoursCount.text = String.format("%.1fh", totalMins / 60)
+                val totalMins = (history.size * 3.5).toInt()
+                tvHoursCount.text = "${totalMins}m"
             }
         }
 
