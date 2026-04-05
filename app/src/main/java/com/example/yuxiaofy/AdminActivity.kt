@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.bumptech.glide.Glide
 import java.util.Locale
 
 data class Song(
@@ -129,6 +130,9 @@ class AdminActivity : AppCompatActivity() {
             activeView.visibility = View.VISIBLE
             activeView.alpha = 0f
             activeView.animate().alpha(1f).setDuration(300).start()
+            if (tab == "users") {
+                rvUsers.adapter?.notifyDataSetChanged()
+            }
         }, 210)
 
         val activeColor = Color.parseColor("#BB86FC")
@@ -392,12 +396,14 @@ class AdminSongAdapter(
         val tvCategory: TextView = v.findViewById(R.id.tvAdminCategory)
         val btnEdit: ImageButton = v.findViewById(R.id.btnEditSong)
         val btnDelete: ImageButton = v.findViewById(R.id.btnDeleteSong)
+        val imgCover: ImageView = v.findViewById(R.id.imgAdminSongCover)
     }
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
         VH(LayoutInflater.from(parent.context).inflate(R.layout.item_admin_song, parent, false))
     override fun onBindViewHolder(holder: VH, position: Int) {
         val s = songs[position]
         holder.tvTitle.text = s.title; holder.tvArtist.text = s.artist; holder.tvCategory.text = s.category
+        Glide.with(holder.itemView.context).load(s.coverUrl).placeholder(R.drawable.bg_glow_circle).into(holder.imgCover)
         holder.btnEdit.setOnClickListener { onEdit(s) }
         holder.btnDelete.setOnClickListener { onDelete(s) }
     }
