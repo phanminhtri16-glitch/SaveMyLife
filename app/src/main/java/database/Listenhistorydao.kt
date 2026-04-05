@@ -12,7 +12,7 @@ interface ListenHistoryDao {
     suspend fun addToHistory(history: ListenHistory)
 
     // Lấy lịch sử theo userId
-    @Query("SELECT * FROM listen_history WHERE userId = :userId ORDER BY listenedAt DESC LIMIT 50")
+    @Query("SELECT * FROM listen_history WHERE userId = :userId ORDER BY listenedAt DESC")
     suspend fun getHistoryByUser(userId: String): List<ListenHistory>
 
     // Xóa lịch sử của 1 user
