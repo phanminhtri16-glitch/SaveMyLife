@@ -167,7 +167,7 @@ class HomeActivity : AppCompatActivity() {
             progressBar.visibility = View.GONE
             if (error != null) {
                 android.util.Log.e("HomeActivity", "Firestore error: ${error.message}")
-                Toast.makeText(this, "Lỗi tải nhạc: ${error.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Lỗi tải nhạc: ${error.message}", Toast.LENGTH_SHORT).cancel()
                 return@addSnapshotListener
             }
             if (snapshot == null) return@addSnapshotListener
