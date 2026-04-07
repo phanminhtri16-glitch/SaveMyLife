@@ -18,6 +18,31 @@
         app:layout_constraintStart_toStartOf="@id/ivSplashLogo"
         app:layout_constraintTop_toTopOf="@id/ivSplashLogo" />
 
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/ivSplashLogo"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginTop="100dp"
+        app:cardBackgroundColor="#FFFFFF"
+        app:cardCornerRadius="100dp"
+        app:cardElevation="12dp"
+        app:layout_constraintBottom_toTopOf="@id/tvSplashName"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.42"
+        app:layout_constraintVertical_chainStyle="packed">
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="8dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/yuxiaofy_logo" />
+    </androidx.cardview.widget.CardView>
+
+    <!--
     <ImageView
         android:id="@+id/ivSplashLogo"
         android:layout_width="100dp"
@@ -25,13 +50,13 @@
         android:layout_marginTop="100dp"
         android:background="@drawable/bg_circle_play"
         android:padding="16dp"
-        android:src="@drawable/ic_launcher_foreground"
+        android:src="@drawable/yuxiaofy_logo"
         app:layout_constraintBottom_toTopOf="@id/tvSplashName"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.42"
-        app:layout_constraintVertical_chainStyle="packed" />
+        app:layout_constraintVertical_chainStyle="packed" /> -->
 
     <TextView
         android:id="@+id/tvSplashName"

@@ -61,8 +61,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:padding="8dp"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_launcher_foreground" />
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/yuxiaofy_logo" />
             </androidx.cardview.widget.CardView>
 
             <TextView
@@ -249,5 +249,4 @@
             android:textSize="12sp" />
 
     </LinearLayout>
-</ScrollView>
-    <!-- Top bar -->
+</ScrollView><!-- Top bar -->
